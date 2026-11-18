@@ -17,6 +17,7 @@
 #endif
 #ifdef AC2_CONTROLLER_PROMPTS
 #include "controller_prompts.h"
+#include "keyboard_prompts.h"
 #endif
 
 
@@ -797,33 +798,48 @@ std::uint64_t texture_fingerprint(IDirect3DTexture9* texture, int rows, int row_
     return hash;
 }
 
-bool is_popup_texture(IDirect3DBaseTexture9* texture) {
-    if (!texture || texture->GetType() != D3DRTYPE_TEXTURE) {
-        return false;
-    }
+
+struct FireTexture {
+    bool popup{};
+    BYTE prompt{};
+    bool action_atlas{};
+};
+
+FireTexture identify_fire_texture(IDirect3DBaseTexture9* texture) {
+    if (!texture || texture->GetType() != D3DRTYPE_TEXTURE) return {};
     constexpr GUID key{0x25fb6a63, 0x80fc, 0x4caa, {0xac, 0x05, 0x28, 0x5e, 0x97, 0x6c, 0xe3, 0xd7}};
-    BYTE match = 0;
-    DWORD bytes = sizeof(match);
-    if (SUCCEEDED(texture->GetPrivateData(key, &match, &bytes))) {
-        return match != 0;
+    FireTexture kind{};
+    DWORD bytes = sizeof(kind);
+    if (SUCCEEDED(texture->GetPrivateData(key, &kind, &bytes))) {
+        return kind;
     }
     auto* color = static_cast<IDirect3DTexture9*>(texture);
     D3DSURFACE_DESC desc{};
     if (FAILED(color->GetLevelDesc(0, &desc))) {
-        return false;
+        return {};
     }
     if (!desc.Usage && desc.Width == 16 && desc.Height == 512 && desc.Format == D3DFMT_DXT3) {
         // menus-popups-bgGradient_Map
-        match = texture_fingerprint(color, 128, 64) == 0xc3c9b925c21f47fdull;
+        kind.popup = texture_fingerprint(color, 128, 64) == 0xc3c9b925c21f47fdull;
     } else if (!desc.Usage && desc.Width == 4 && desc.Height == 256 && desc.Format == D3DFMT_DXT1) {
         // Animus_Popup_BackgroundGradient_Map
-        match = texture_fingerprint(color, 64, 8) == 0xcba261394f323ea7ull;
+        kind.popup = texture_fingerprint(color, 64, 8) == 0xcba261394f323ea7ull;
+#ifdef AC2_CONTROLLER_PROMPTS
+    } else if (!desc.Usage && desc.Width == 32 && desc.Height == 32 && desc.Format == D3DFMT_A8R8G8B8) {
+        const auto fingerprint = texture_fingerprint(color, 32, 128);
+        if (!fingerprint) return kind;
+        kind.prompt = static_cast<BYTE>(prompt_button(fingerprint));
+    } else if (!desc.Usage && desc.Width == 128 && desc.Height == 256 && desc.Format == D3DFMT_A8R8G8B8) {
+        const auto fingerprint = texture_fingerprint(color, 256, 512);
+        if (!fingerprint) return kind;
+        kind.action_atlas = fingerprint == 0x5dd6eba185fa0123ull;
+#endif
     }
-    texture->SetPrivateData(key, &match, sizeof(match), 0);
-    if (match) {
+    texture->SetPrivateData(key, &kind, sizeof(kind), 0);
+    if (kind.popup) {
         trace("popup_texture", 0, 0, 0, 0, desc.Width, desc.Height, desc.Format, desc.Pool);
     }
-    return match != 0;
+    return kind;
 }
 
 extern "C" __attribute__((used)) float ac2_center_hud(float width, float height, float* margins) {
@@ -1170,25 +1186,6 @@ void apply_controller_routes(const GameImage& image) {
     VirtualProtect(table, sizeof(original), protection, &ignored);
 }
 
-PromptButton texture_prompt(IDirect3DBaseTexture9* texture) {
-    if (!texture || texture->GetType() != D3DRTYPE_TEXTURE) {
-        return PromptButton::None;
-    }
-    constexpr GUID key{0x820cc67c, 0x384b, 0x4af4, {0xb7, 0xb0, 0x27, 0x9b, 0x1e, 0xab, 0x90, 0x31}};
-    PromptButton button = PromptButton::None;
-    DWORD bytes = sizeof(button);
-    if (SUCCEEDED(texture->GetPrivateData(key, &button, &bytes))) {
-        return button;
-    }
-    auto* color = static_cast<IDirect3DTexture9*>(texture);
-    D3DSURFACE_DESC desc{};
-    if (SUCCEEDED(color->GetLevelDesc(0, &desc)) && !desc.Usage && desc.Format == D3DFMT_A8R8G8B8 &&
-        desc.Width == 32 && desc.Height == 32) {
-        button = prompt_button(texture_fingerprint(color, 32, 128));
-    }
-    texture->SetPrivateData(key, &button, sizeof(button), 0);
-    return button;
-}
 #endif
 
 void apply_world_markers(const GameImage& image) {
@@ -1579,13 +1576,23 @@ public:
             movie_surround_.reset();
 #endif
 #ifdef AC2_CONTROLLER_PROMPTS
+            stop_controller_feedback();
             for (auto& family : prompt_textures_) {
-                for (auto* texture : family) {
-                    if (texture) {
-                        texture->Release();
+                for (auto& states : family) {
+                    for (auto* texture : states) {
+                        if (texture) texture->Release();
                     }
                 }
             }
+            for (auto& pair : key_textures_) {
+                for (auto* texture : pair) {
+                    if (texture) texture->Release();
+                }
+            }
+            for (auto* texture : notice_textures_) {
+                if (texture) texture->Release();
+            }
+            if (action_atlas_) action_atlas_->Release();
 #endif
             real_->Release();
             factory_->Release();
@@ -1638,6 +1645,11 @@ public:
 
     HRESULT STDMETHODCALLTYPE Present(const RECT* source, const RECT* destination,
         HWND window, const RGNDATA* dirty) noexcept override {
+#ifdef AC2_CONTROLLER_PROMPTS
+        keyboard_prompts_.update();
+        controller_feedback_focus(keyboard_prompts_.focused());
+        show_prompt_notice();
+#endif
         const UINT frame = frame_.fetch_add(1);
         const bool sample = sampled(frame);
         D3DVIEWPORT9 viewport{};
@@ -1833,25 +1845,24 @@ public:
     }
 
     HRESULT STDMETHODCALLTYPE SetTexture(DWORD stage, IDirect3DBaseTexture9* texture) noexcept override {
+#ifdef AC2_NATIVE_VIEW
+        const auto kind = stage == 0 && code_rva(__builtin_return_address(0)) == 0x011dfa59
+            ? identify_fire_texture(texture) : FireTexture{};
 #ifdef AC2_CONTROLLER_PROMPTS
-        if (stage == 0 && code_rva(__builtin_return_address(0)) == 0x011dfa59) {
-            const ControllerFamily family = active_controller_family();
-            const PromptButton button = family != ControllerFamily::Unknown ? texture_prompt(texture) : PromptButton::None;
-            if (button != PromptButton::None) {
-                auto*& replacement = prompt_textures_[static_cast<unsigned>(family) - 1][static_cast<unsigned>(button)];
-                if (!replacement) {
-                    replacement = create_prompt_texture(real_, family, button);
-                }
-                if (replacement) {
-                    texture = replacement;
-                }
+        if (kind.prompt) {
+            if (auto* replacement = replacement_prompt(static_cast<PromptButton>(kind.prompt),
+                                                       active_controller_prompt())) texture = replacement;
+        } else if (kind.action_atlas) {
+            if (auto* replacement = replacement_action_atlas(static_cast<IDirect3DTexture9*>(texture))) {
+                texture = replacement;
             }
         }
+#endif
 #endif
         const HRESULT result = real_->SetTexture(stage, texture);
 #ifdef AC2_NATIVE_VIEW
         if (SUCCEEDED(result) && stage == 0) {
-            popup_texture_ = code_rva(__builtin_return_address(0)) == 0x011dfa59 && is_popup_texture(texture);
+            popup_texture_ = kind.popup;
         }
 #endif
         const UINT frame = frame_;
@@ -1959,6 +1970,127 @@ public:
 #include "device_forward.inc"
 
 private:
+#ifdef AC2_CONTROLLER_PROMPTS
+    IDirect3DTexture9* replacement_action_atlas(IDirect3DTexture9* original) {
+        const bool keyboard = keyboard_prompts_.keyboard_selected();
+        const auto controller = active_controller_prompt();
+        const auto skin = keyboard ? (keyboard_prompts_.enabled() ? ControllerFamily::Count : ControllerFamily::Unknown)
+                                   : controller.family;
+        if (skin == ControllerFamily::Unknown) return nullptr;
+        if (!action_atlas_) {
+            action_atlas_ = create_action_prompt_atlas(real_, original);
+            if (!action_atlas_) return nullptr;
+        }
+        if (skin != action_skin_) {
+            action_revisions_.fill(0);
+            action_skin_ = skin;
+            trace("action_prompt_atlas", id_, frame_, static_cast<long>(skin));
+        }
+        constexpr PromptButton roles[] = {PromptButton::South, PromptButton::East, PromptButton::West,
+                                          PromptButton::North, PromptButton::LeftShoulder};
+        for (size_t index = 0; index < std::size(roles); ++index) {
+            const auto role = roles[index];
+            const int binding = keyboard ? keyboard_prompts_.binding(role) : -1;
+            const unsigned revision = keyboard
+                ? (binding < 0 ? 1 : 2 + 2 * static_cast<unsigned>(binding) + keyboard_prompts_.pressed(role))
+                : 1 + controller_prompt_pressed(role, controller.pressed);
+            if (action_revisions_[index] == revision) continue;
+            auto* glyph = replacement_prompt(role, controller);
+            if ((!glyph && (binding >= 0 || !keyboard)) ||
+                !update_action_prompt_atlas(action_atlas_, original, role, glyph)) return nullptr;
+            action_revisions_[index] = revision;
+        }
+        return action_atlas_;
+    }
+
+    IDirect3DTexture9* replacement_prompt(PromptButton button, const ControllerPromptState& controller) {
+        const bool keyboard = keyboard_prompts_.keyboard_selected();
+        const auto family = controller.family;
+        if (!keyboard_prompts_.enabled() && keyboard) return nullptr;
+        if (!keyboard && family == ControllerFamily::Unknown) return nullptr;
+        if (keyboard) {
+            const auto role = static_cast<unsigned>(button);
+            const int binding = keyboard_prompts_.binding(button);
+            if (binding < 0) return nullptr;
+            if (key_codes_[role] != binding) {
+                for (auto*& texture : key_textures_[role]) {
+                    if (texture) texture->Release();
+                    texture = nullptr;
+                }
+                key_codes_[role] = binding;
+            }
+            const bool pressed = keyboard_prompts_.pressed(button);
+            auto*& replacement = key_textures_[role][pressed];
+            if (!replacement) {
+                replacement = create_key_prompt_texture(real_, binding, pressed);
+                if (replacement) trace("key_prompt", id_, frame_, role, pressed);
+            }
+            return replacement;
+        }
+        if (button == PromptButton::Apply) button = PromptButton::South;
+        if (button == PromptButton::Cancel) button = PromptButton::East;
+        const auto role = static_cast<unsigned>(button);
+        const bool pressed = controller_prompt_pressed(button, controller.pressed);
+        auto*& replacement = prompt_textures_[static_cast<unsigned>(family) - 1][role][pressed];
+        if (!replacement) replacement = create_prompt_texture(real_, family, button, pressed);
+        return replacement;
+    }
+
+    void show_prompt_notice() {
+        const wchar_t* notice = keyboard_prompts_.notice();
+        if (!notice || !keyboard_prompts_.focused() || !rendering_output()) return;
+        auto*& texture = notice_textures_[keyboard_prompts_.enabled()];
+        if (!texture) texture = create_prompt_notice_texture(real_, notice);
+        D3DSURFACE_DESC desc{};
+        IDirect3DSurface9* backbuffer = nullptr;
+        if (!texture || FAILED(real_->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backbuffer))) return;
+        const HRESULT dimensions = backbuffer->GetDesc(&desc);
+        backbuffer->Release();
+        if (FAILED(dimensions) || FAILED(real_->BeginScene())) return;
+        IDirect3DStateBlock9* state = nullptr;
+        if (SUCCEEDED(real_->CreateStateBlock(D3DSBT_ALL, &state))) {
+            const float scale = std::min({1.0f, desc.Width / 288.0f, desc.Height / 96.0f});
+            const float left = (desc.Width - 256 * scale) * 0.5f - 0.5f;
+            const float top = 16 * scale - 0.5f;
+            const float right = left + 256 * scale, bottom = top + 32 * scale;
+            const struct { float x, y, z, rhw, u, v; } vertices[] = {
+                {left, top, 0, 1, 0, 0}, {right, top, 0, 1, 1, 0},
+                {left, bottom, 0, 1, 0, 1}, {right, bottom, 0, 1, 1, 1},
+            };
+            const D3DVIEWPORT9 viewport{0, 0, desc.Width, desc.Height, 0, 1};
+            real_->SetViewport(&viewport);
+            real_->SetVertexShader(nullptr);
+            real_->SetPixelShader(nullptr);
+            real_->SetFVF(D3DFVF_XYZRHW | D3DFVF_TEX1);
+            real_->SetRenderState(D3DRS_ZENABLE, FALSE);
+            real_->SetRenderState(D3DRS_STENCILENABLE, FALSE);
+            real_->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
+            real_->SetRenderState(D3DRS_FOGENABLE, FALSE);
+            real_->SetRenderState(D3DRS_SCISSORTESTENABLE, FALSE);
+            real_->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+            real_->SetRenderState(D3DRS_COLORWRITEENABLE, 0xf);
+            real_->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+            real_->SetRenderState(D3DRS_SEPARATEALPHABLENDENABLE, FALSE);
+            real_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
+            real_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+            real_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+            real_->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+            real_->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+            real_->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+            real_->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+            real_->SetTextureStageState(0, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_DISABLE);
+            real_->SetTextureStageState(0, D3DTSS_TEXCOORDINDEX, 0);
+            real_->SetTextureStageState(1, D3DTSS_COLOROP, D3DTOP_DISABLE);
+            real_->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+            real_->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+            real_->SetTexture(0, texture);
+            real_->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, vertices, sizeof(vertices[0]));
+            state->Apply();
+            state->Release();
+        }
+        real_->EndScene();
+    }
+#endif
 #ifdef AC2_NATIVE_VIEW
     bool solid_flash_texture() {
         if (!rendering_output()) {
@@ -2174,8 +2306,15 @@ private:
     UINT shop_trace_frame_{}, shop_trace_count_{};
 #endif
 #ifdef AC2_CONTROLLER_PROMPTS
+    KeyboardPrompts keyboard_prompts_;
+    int key_codes_[static_cast<unsigned>(PromptButton::Count)]{};
+    IDirect3DTexture9* key_textures_[static_cast<unsigned>(PromptButton::Count)][2]{};
+    IDirect3DTexture9* notice_textures_[2]{};
+    IDirect3DTexture9* action_atlas_{};
+    ControllerFamily action_skin_{};
+    std::array<unsigned, 5> action_revisions_{};
     IDirect3DTexture9* prompt_textures_[static_cast<unsigned>(ControllerFamily::Count) - 1]
-                                     [static_cast<unsigned>(PromptButton::Count)]{};
+                                     [static_cast<unsigned>(PromptButton::Count)][2]{};
 #endif
 #ifdef AC2_VIDEO_FIT
     std::atomic<UINT> output_width_{0}, output_height_{0};

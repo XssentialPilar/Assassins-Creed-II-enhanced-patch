@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="640" height="128" viewBox="0 0 320 64">
+  <title>Xbox button prompts</title>
+  <desc>A, B, X, Y, LT, RT, LB, RB, Menu and View.</desc>
+  <defs>
+    <linearGradient id="idle-fill" x2="0" y2="1">
+      <stop stop-color="#333734"/><stop offset="1" stop-color="#121614"/>
+    </linearGradient>
+    <linearGradient id="idle-rim" x2="0" y2="1">
+      <stop stop-color="#bfc6c2"/><stop offset="1" stop-color="#656e68"/>
+    </linearGradient>
+    <linearGradient id="held-fill" x2="0" y2="1">
+      <stop stop-color="#28372e"/><stop offset="1" stop-color="#111a15"/>
+    </linearGradient>
+    <linearGradient id="held-rim" x2="0" y2="1">
+      <stop stop-color="#e0eddf"/><stop offset="1" stop-color="#879e8d"/>
+    </linearGradient>
+    <g id="cap">
+      <circle cx="16" cy="16" r="13.6" stroke-width="1.2"/>
+      <circle cx="16" cy="16" r="11.85" fill="none" stroke="#59645d" stroke-width=".52"/>
+    </g>
+    <g id="caps">
+      <use xlink:href="#cap" x="0"/><use xlink:href="#cap" x="32"/><use xlink:href="#cap" x="64"/><use xlink:href="#cap" x="96"/><use xlink:href="#cap" x="128"/>
+      <use xlink:href="#cap" x="160"/><use xlink:href="#cap" x="192"/><use xlink:href="#cap" x="224"/><use xlink:href="#cap" x="256"/><use xlink:href="#cap" x="288"/>
+    </g>
+    <style>
+      .face { font-family:"Segoe UI",sans-serif; font-weight:700; font-size:19.5px; text-anchor:middle; fill:#f7f7f7 }
+      .label { font-family:"Segoe UI",sans-serif; font-weight:700; font-size:13px; text-anchor:middle; fill:#f7f7f7 }
+      .mark { stroke:#eff5ef; stroke-width:1.65; fill:none; stroke-linejoin:round; stroke-linecap:round }
+    </style>
+    <g id="legends">
+      <g><text x="16" y="22.9" class="face" fill="#9cda77">A</text></g>
+      <g transform="translate(32)"><text x="16" y="22.9" class="face" fill="#f19da0">B</text></g>
+      <g transform="translate(64)"><text x="16" y="22.9" class="face" fill="#92c5fb">X</text></g>
+      <g transform="translate(96)"><text x="16" y="22.9" class="face" fill="#f4d66e">Y</text></g>
+      <g transform="translate(128)"><text x="16" y="20.7" class="label">LT</text></g>
+      <g transform="translate(160)"><text x="16" y="20.7" class="label">RT</text></g>
+      <g transform="translate(192)"><text x="16" y="20.7" class="label">LB</text></g>
+      <g transform="translate(224)"><text x="16" y="20.7" class="label">RB</text></g>
+      <g transform="translate(256)"><path class="mark" d="M10.4 12h11.2m-11.2 4h11.2m-11.2 4h11.2"/></g>
+      <g transform="translate(288)"><path class="mark" d="M13 13v-2h9v7h-3M10 14h9v7h-9Z"/></g>
+    </g>
+  </defs>
+  <g transform="translate(0 0)">
+    <use xlink:href="#caps" fill="url(#idle-fill)" fill-opacity=".62" stroke="url(#idle-rim)"/>
+    <use xlink:href="#legends"/>
+  </g>
+  <g transform="translate(0 32)">
+    <use xlink:href="#caps" fill="url(#held-fill)" fill-opacity=".86" stroke="url(#held-rim)"/>
+    <use xlink:href="#legends"/>
+  </g>
+</svg>

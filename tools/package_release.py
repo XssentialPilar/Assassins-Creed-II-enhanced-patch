@@ -1,6 +1,7 @@
 """Package a tested Win32 Enhanced Patch build for GitHub Releases."""
 import argparse
 import hashlib
+import json
 from pathlib import Path
 import re
 import struct
@@ -15,9 +16,9 @@ LICENSES = (
     "licenses/MinGW-w64-runtime.txt",
     "licenses/winpthreads.txt",
 )
-DOCUMENTATION = (
-    "LICENSE", "README.md", "BUILD.md", "THIRD_PARTY.md", *LICENSES,
-)
+PROMPT_ART = tuple(f"assets/prompts/{name}.svg" for name in
+                   ("keyboard-mouse", "dualshock-3", "dualshock-4", "xbox", "dualsense"))
+DOCUMENTATION = ("LICENSE", "README.md", "BUILD.md", "THIRD_PARTY.md", *PROMPT_ART, *LICENSES)
 
 
 def checked_dll(path):
@@ -31,10 +32,17 @@ def checked_dll(path):
     return data
 
 
-def package(version, build):
+def package(version, build, prompt_preview=None):
     if not re.fullmatch(r"\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?", version):
         raise ValueError("Provide a release version such as 1.0.0.")
     files = {name: checked_dll(build / name) for name in DLL_NAMES}
+    if prompt_preview is not None:
+        files["input-prompts.png"] = prompt_preview.read_bytes()
+        if not files["input-prompts.png"].startswith(b"\x89PNG\r\n\x1a\n"):
+            raise ValueError("The prompt preview must be a PNG.")
+    manifest = {"version": version, "sha256": {name: hashlib.sha256(content).hexdigest()
+                                               for name, content in files.items()}}
+    files["patch-manifest.json"] = (json.dumps(manifest, indent=2) + "\n").encode("utf-8")
     if (build / "SDL3-LICENSE.txt").read_text(encoding="utf-8") != (ROOT / LICENSES[0]).read_text(encoding="utf-8"):
         raise ValueError("The SDL notice in this build differs from the repository copy.")
     files.update((name, (ROOT / name).read_bytes()) for name in DOCUMENTATION)
@@ -58,5 +66,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("version")
     parser.add_argument("--build-dir", type=Path, required=True)
+    parser.add_argument("--prompt-preview", type=Path, help="PNG exported from this build's controller smoke test.")
     arguments = parser.parse_args()
-    package(arguments.version, arguments.build_dir)
+    package(arguments.version, arguments.build_dir, arguments.prompt_preview)

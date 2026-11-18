@@ -4,11 +4,21 @@
 #include <xinput.h>
 
 enum class ControllerFamily { Unknown, Xbox, PS3, PS4, PS5, Count };
+constexpr DWORD PromptLeftTrigger = 1u << 16;
+constexpr DWORD PromptRightTrigger = 1u << 17;
+
+struct ControllerPromptState {
+    ControllerFamily family{};
+    DWORD pressed{};
+};
 
 bool initialize_controller_input();
 bool bind_controller(DWORD slot, DWORD product);
 ControllerFamily active_controller_family();
+ControllerPromptState active_controller_prompt();
 void observe_native_controller(DWORD slot, const XINPUT_STATE& state);
+void controller_feedback_focus(bool focused);
+void stop_controller_feedback();
 
 // ERROR_NOT_FOUND means the slot belongs to the original Windows XInput path.
 DWORD controller_state(DWORD slot, XINPUT_STATE* state);

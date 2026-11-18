@@ -1,12 +1,14 @@
 """Build the Win32 Direct3D 9 probe or native view patch."""
 import argparse
 import ctypes as ct
+from itertools import groupby
 import os
 from pathlib import Path
 import re
 import shutil
 import struct
 import subprocess
+import xml.etree.ElementTree as ET
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -15,6 +17,62 @@ METHOD = re.compile(
     r'|(?:\(\s*(?P<name>\w+)\s*\)))\s*\(\s*THIS_?\s*(?P<args>.*?)\)\s*PURE\s*;',
     re.S,
 )
+
+
+def generate_prompt_geometry(out):
+    """Use the same cap proportions and colors as the editable SVG."""
+    drawing = ET.parse(ROOT / 'assets/prompts/keyboard-mouse.svg')
+    geometry = ('cx', 'cy', 'r', 'stroke-width', 'fill-opacity', 'stroke-opacity')
+    source = '// Generated from assets/prompts/keyboard-mouse.svg\n'
+    for element_id, variable in (('key-face', 'Keycap'), ('pressed-face', 'KeycapPressed')):
+        key = next(element.attrib for element in drawing.iter() if element.get('id') == element_id)
+        values = [float(key[name]) for name in geometry]
+        colors = [int(key[name][1:], 16) for name in ('fill', 'stroke')]
+        source += f'constexpr KeycapGeometry {variable} = {{' + ', '.join(f'{n:.6f}f' for n in values)
+        source += ', ' + ', '.join(f'0x{color:06x}u' for color in colors) + '};\n'
+    (out / 'keyboard_keycap.inc').write_text(source, encoding='utf-8')
+
+
+def generate_controller_sprites(out, executable):
+    """Rasterize the audited SVGs at build time and embed their lossless tiles."""
+    try:
+        from PIL import Image
+    except ImportError:
+        raise SystemExit('Install Pillow to build the SVG controller prompts.') from None
+    rasterizer = executable or shutil.which('resvg')
+    if not rasterizer:
+        raise SystemExit('Install resvg or pass --resvg with its executable path.')
+
+    families = ('xbox', 'dualshock-3', 'dualshock-4', 'dualsense')
+    tile_size, buttons = 64, 10
+    runs, offsets = [], [0]
+    for family in families:
+        source = ROOT / 'assets/prompts' / f'{family}.svg'
+        target = out / f'{family}.png'
+        subprocess.run([str(rasterizer), str(source), str(target)], check=True)
+        with Image.open(target) as sheet:
+            if sheet.size != (buttons * tile_size, 2 * tile_size):
+                raise ValueError(f'{family} uses an unexpected SVG view size.')
+            for index in range(buttons * 2):
+                left = index % buttons * tile_size
+                top = index // buttons * tile_size
+                sprite = sheet.crop((left, top, left + tile_size, top + tile_size)).convert('RGBA')
+                bounds = sprite.getchannel('A').getbbox()
+                if not bounds or min(bounds[0], bounds[1], tile_size - bounds[2], tile_size - bounds[3]) < 1:
+                    raise ValueError(f'{family} sprite {index + 1} has an empty or clipped mark.')
+                pixels = struct.iter_unpack('<I', sprite.tobytes('raw', 'BGRA'))
+                for (color,), identical in groupby(pixels):
+                    runs.append(f'{{0x{color:08x}u, {sum(1 for _ in identical)}}}')
+                offsets.append(len(runs))
+
+    source = '// Generated from SVG controller art by resvg, in ControllerFamily order.\n'
+    source += f'constexpr unsigned PadSpriteSize = {tile_size};\n'
+    source += f'constexpr unsigned PadSpriteButtons = {buttons};\n'
+    source += 'constexpr unsigned PadSpriteOffsets[] = {\n    ' + ', '.join(map(str, offsets)) + '\n};\n'
+    source += 'constexpr PadSpriteRun PadSpriteRuns[] = {\n'
+    for index in range(0, len(runs), 6):
+        source += '    ' + ', '.join(runs[index:index + 6]) + ',\n'
+    (out / 'controller_sprites.inc').write_text(source + '};\n', encoding='utf-8')
 
 
 def generate(header, interface, overrides, total):
@@ -77,7 +135,7 @@ def compile_movie_shader(out):
         (out / f'movie_surround_{name}.inc').write_text('\n'.join(lines) + '\n', encoding='ascii')
 
 
-def build(native_view, fit_video, high_refresh, lean_trace, controller_sdk):
+def build(native_view, fit_video, high_refresh, lean_trace, controller_sdk, resvg=None):
     compiler = shutil.which('i686-w64-mingw32-clang++')
     if not compiler:
         raise SystemExit('Install or add the Win32 LLVM-MinGW compiler to PATH.')
@@ -105,6 +163,8 @@ def build(native_view, fit_video, high_refresh, lean_trace, controller_sdk):
     controller_options = []
     controller_libs = []
     if controller_sdk:
+        generate_prompt_geometry(out)
+        generate_controller_sprites(out, resvg)
         runtime = controller_sdk/'bin'/'SDL3.dll'
         license_file = controller_sdk.parent/'LICENSE.txt'
         if not runtime.is_file() or not (controller_sdk/'include'/'SDL3'/'SDL.h').is_file():
@@ -112,9 +172,11 @@ def build(native_view, fit_video, high_refresh, lean_trace, controller_sdk):
         shutil.copyfile(runtime, out/'SDL3.dll')
         if license_file.is_file():
             shutil.copyfile(license_file, out/'SDL3-LICENSE.txt')
-        controller_sources = [str(ROOT/'native/controller_bridge.cpp'), str(ROOT/'native/controller_prompts.cpp')]
-        controller_options = ['-I', str(controller_sdk/'include')]
-        controller_libs = [str(controller_sdk/'lib'/'libSDL3.dll.a'), '-lgdi32']
+        controller_sources = [str(ROOT/'native'/name) for name in
+                              ('controller_bridge.cpp', 'controller_prompts.cpp', 'dualsense_feedback.cpp',
+                               'keyboard_prompts.cpp')]
+        controller_options = ['-I', str(controller_sdk/'include'), '-I', str(out)]
+        controller_libs = [str(controller_sdk/'lib'/'libSDL3.dll.a'), '-lgdi32', '-lcfgmgr32', '-lole32', '-luuid']
         options += ['-DAC2_CONTROLLER_PROMPTS', *controller_options, *controller_sources]
     if fit_video:
         compile_movie_shader(out)
@@ -154,6 +216,7 @@ if __name__ == '__main__':
                         help='Log timing and applied fixes without scanning the render passes.')
     parser.add_argument('--controller-sdk', type=Path, metavar='SDL3_I686_PATH',
                         help='Build the experimental controller and prompt integration with SDL3 for Win32.')
+    parser.add_argument('--resvg', type=Path, help='Path to the resvg CLI for rasterizing controller artwork.')
     args = parser.parse_args()
     build(bool(args.native_view or args.high_refresh or args.controller_sdk), args.fit_video,
-          args.high_refresh, args.lean_trace, args.controller_sdk)
+          args.high_refresh, args.lean_trace, args.controller_sdk, args.resvg)
