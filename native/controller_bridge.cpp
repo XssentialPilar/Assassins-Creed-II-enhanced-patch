@@ -64,8 +64,13 @@ bool new_input(const XINPUT_GAMEPAD& before, const XINPUT_GAMEPAD& after) {
 ControllerFamily family_of(SDL_Gamepad* pad) {
     const auto vendor = SDL_GetGamepadVendor(pad);
     const auto type = SDL_GetRealGamepadType(pad);
-    if (vendor == 0x054c && type == SDL_GAMEPAD_TYPE_PS4) {
-        return ControllerFamily::PS4;
+    if (vendor == 0x054c) {
+        switch (type) {
+            case SDL_GAMEPAD_TYPE_PS3: return ControllerFamily::PS3;
+            case SDL_GAMEPAD_TYPE_PS4: return ControllerFamily::PS4;
+            case SDL_GAMEPAD_TYPE_PS5: return ControllerFamily::PS5;
+            default: break;
+        }
     }
     if (vendor == 0x045e && (type == SDL_GAMEPAD_TYPE_XBOX360 || type == SDL_GAMEPAD_TYPE_XBOXONE)) {
         return ControllerFamily::Xbox;
@@ -175,6 +180,7 @@ XINPUT_GAMEPAD read_buttons(SDL_Gamepad* pad) {
 }  // namespace
 
 bool initialize_controller_input() {
+    SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_PS3_SIXAXIS_DRIVER, "1");
     SDL_SetHint(SDL_HINT_JOYSTICK_ENHANCED_REPORTS, "auto");
     if (!SDL_InitSubSystem(SDL_INIT_GAMEPAD)) {
         return false;

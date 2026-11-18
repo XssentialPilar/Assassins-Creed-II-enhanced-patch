@@ -34,9 +34,9 @@ SDL_JoystickID attach(Uint16 vendor, Uint16 product, RumbleCapture* rumble = nul
     return SDL_AttachVirtualJoystick(&definition);
 }
 
-bool test_rumble(RumbleCapture& ps4, RumbleCapture& xbox) {
+bool test_rumble(DWORD first, RumbleCapture& first_pad, DWORD second, RumbleCapture& second_pad) {
     XINPUT_CAPABILITIES capabilities{};
-    constexpr DWORD gamepad_slots[] = {0, 1};
+    const DWORD gamepad_slots[] = {first, second};
     for (DWORD slot : gamepad_slots) {
         if (controller_capabilities(slot, 0, &capabilities) != ERROR_SUCCESS ||
             !(capabilities.Flags & XINPUT_CAPS_FFB_SUPPORTED) ||
@@ -45,23 +45,24 @@ bool test_rumble(RumbleCapture& ps4, RumbleCapture& xbox) {
         }
     }
     constexpr XINPUT_VIBRATION low{54000, 0}, high{0, 17000}, stop{};
-    if (controller_vibration(0, &low) != ERROR_SUCCESS || controller_vibration(1, &high) != ERROR_SUCCESS) {
+    if (controller_vibration(first, &low) != ERROR_SUCCESS ||
+        controller_vibration(second, &high) != ERROR_SUCCESS) {
         return false;
     }
     XINPUT_STATE state{};
     const DWORD start = GetTickCount();
     while (GetTickCount() - start < 6250) {
-        if (controller_state(0, &state) != ERROR_SUCCESS || controller_state(1, &state) != ERROR_SUCCESS ||
-            ps4.motors.wLeftMotorSpeed != low.wLeftMotorSpeed || ps4.motors.wRightMotorSpeed != 0 ||
-            xbox.motors.wLeftMotorSpeed != 0 || xbox.motors.wRightMotorSpeed != high.wRightMotorSpeed) {
+        if (controller_state(first, &state) != ERROR_SUCCESS || controller_state(second, &state) != ERROR_SUCCESS ||
+            first_pad.motors.wLeftMotorSpeed != low.wLeftMotorSpeed || first_pad.motors.wRightMotorSpeed != 0 ||
+            second_pad.motors.wLeftMotorSpeed != 0 || second_pad.motors.wRightMotorSpeed != high.wRightMotorSpeed) {
             return false;
         }
         Sleep(25);
     }
-    return ps4.writes > 1 && xbox.writes > 1 &&
-           controller_vibration(0, &stop) == ERROR_SUCCESS && ps4.motors.wLeftMotorSpeed == 0 &&
-           xbox.motors.wRightMotorSpeed == high.wRightMotorSpeed &&
-           controller_vibration(1, &stop) == ERROR_SUCCESS && xbox.motors.wRightMotorSpeed == 0;
+    return first_pad.writes > 1 && second_pad.writes > 1 &&
+           controller_vibration(first, &stop) == ERROR_SUCCESS && first_pad.motors.wLeftMotorSpeed == 0 &&
+           second_pad.motors.wRightMotorSpeed == high.wRightMotorSpeed &&
+           controller_vibration(second, &stop) == ERROR_SUCCESS && second_pad.motors.wRightMotorSpeed == 0;
 }
 
 bool press_south(SDL_Joystick* joystick, DWORD slot, ControllerFamily family) {
@@ -70,6 +71,26 @@ bool press_south(SDL_Joystick* joystick, DWORD slot, ControllerFamily family) {
            controller_state(slot, &state) == ERROR_SUCCESS &&
            state.Gamepad.wButtons == XINPUT_GAMEPAD_A &&
            active_controller_family() == family;
+}
+
+bool test_dualshock3_and_dualsense() {
+    RumbleCapture ds3_rumble, dualsense_rumble;
+    const auto ds3 = attach(0x054c, 0x0268, &ds3_rumble);
+    const auto dualsense = attach(0x054c, 0x0ce6, &dualsense_rumble);
+    auto* ds3_pad = ds3 ? SDL_OpenJoystick(ds3) : nullptr;
+    auto* dualsense_pad = dualsense ? SDL_OpenJoystick(dualsense) : nullptr;
+    const bool passed = ds3_pad && dualsense_pad &&
+        bind_controller(2, 0x0268054c) && bind_controller(3, 0x0ce6054c) &&
+        press_south(ds3_pad, 2, ControllerFamily::PS3) && press_south(dualsense_pad, 3, ControllerFamily::PS5) &&
+        test_rumble(2, ds3_rumble, 3, dualsense_rumble);
+    if (ds3_pad) SDL_CloseJoystick(ds3_pad);
+    if (dualsense_pad) SDL_CloseJoystick(dualsense_pad);
+    if (ds3) SDL_DetachVirtualJoystick(ds3);
+    if (dualsense) SDL_DetachVirtualJoystick(dualsense);
+    XINPUT_STATE state{};
+    return passed && controller_state(2, &state) == ERROR_DEVICE_NOT_CONNECTED &&
+           controller_state(3, &state) == ERROR_DEVICE_NOT_CONNECTED &&
+           active_controller_family() == ControllerFamily::Unknown;
 }
 
 bool texture_digest(IDirect3DTexture9* texture, DWORD& digest) {
@@ -107,17 +128,35 @@ bool different_glyphs() {
     parameters.SwapEffect = D3DSWAPEFFECT_DISCARD;
     parameters.hDeviceWindow = window;
     IDirect3DDevice9* device = nullptr;
-    bool passed = factory && SUCCEEDED(factory->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, window,
-        D3DCREATE_SOFTWARE_VERTEXPROCESSING, &parameters, &device));
+    const auto create_device = [&](D3DDEVTYPE type) {
+        auto config = parameters;
+        return SUCCEEDED(factory->CreateDevice(D3DADAPTER_DEFAULT, type, window,
+            D3DCREATE_SOFTWARE_VERTEXPROCESSING, &config, &device));
+    };
+    // Texture checks can run on the null device while another program owns full-screen Direct3D.
+    bool passed = factory && (create_device(D3DDEVTYPE_HAL) || create_device(D3DDEVTYPE_NULLREF));
     if (passed) {
         for (unsigned i = 1; passed && i < static_cast<unsigned>(PromptButton::Count); ++i) {
             const auto button = static_cast<PromptButton>(i);
-            auto* ps4 = create_prompt_texture(device, ControllerFamily::PS4, button);
-            auto* xbox = create_prompt_texture(device, ControllerFamily::Xbox, button);
-            DWORD ps_digest = 0, xb_digest = 0;
-            passed = texture_digest(ps4, ps_digest) && texture_digest(xbox, xb_digest) && ps_digest != xb_digest;
-            if (ps4) ps4->Release();
-            if (xbox) xbox->Release();
+            const auto digest = [device, button, &passed](ControllerFamily family) {
+                auto* texture = create_prompt_texture(device, family, button);
+                DWORD signature = 0;
+                passed &= texture_digest(texture, signature);
+                if (texture) texture->Release();
+                return signature;
+            };
+            const DWORD xbox = digest(ControllerFamily::Xbox);
+            const DWORD ps3 = digest(ControllerFamily::PS3);
+            const DWORD ps4 = digest(ControllerFamily::PS4);
+            const DWORD ps5 = digest(ControllerFamily::PS5);
+            passed &= xbox != ps3 && xbox != ps4 && xbox != ps5;
+            if (button == PromptButton::Start) {
+                passed &= ps3 != ps4 && ps4 == ps5;
+            } else if (button == PromptButton::Back) {
+                passed &= ps3 != ps4 && ps3 != ps5 && ps4 != ps5;
+            } else {
+                passed &= ps3 == ps4 && ps4 == ps5;
+            }
         }
         device->Release();
     }
@@ -143,7 +182,7 @@ int main() {
     auto* xb_pad = SDL_OpenJoystick(xbox);
     const bool covers_both = ps_pad && xb_pad && press_south(ps_pad, 0, ControllerFamily::PS4) &&
                              press_south(xb_pad, 1, ControllerFamily::Xbox);
-    const bool rumble = covers_both && test_rumble(ps4_rumble, xbox_rumble);
+    const bool rumble = covers_both && test_rumble(0, ps4_rumble, 1, xbox_rumble);
     XINPUT_STATE state{};
     const bool ignores_drift = covers_both && SDL_SetJoystickVirtualAxis(ps_pad, SDL_GAMEPAD_AXIS_LEFTX, 1500) &&
         controller_state(0, &state) == ERROR_SUCCESS && active_controller_family() == ControllerFamily::Xbox;
@@ -176,9 +215,15 @@ int main() {
         prompt_button(0x28085c42e2f616beull) != PromptButton::East) {
         return 3;
     }
+    if (!test_dualshock3_and_dualsense()) {
+        std::puts("DualShock 3 / DualSense input, identity, or rumble check failed.");
+        return 5;
+    }
+    std::puts("DualShock 3, DualShock 4, DualSense, and Xbox virtual input and sustained rumble passed.");
     if (!different_glyphs()) {
+        std::puts("Direct3D controller glyph check failed.");
         return 4;
     }
-    std::puts("PS4 and Xbox switching, distinct glyphs, reconnection, and independent sustained rumble passed.");
+    std::puts("Controller glyph check passed for all four families.");
     return 0;
 }

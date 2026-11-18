@@ -2,7 +2,7 @@
 
 ![Assassin’s Creed II Enhanced Patch cover featuring the rooftops of Monteriggioni](https://raw.githubusercontent.com/XssentialPilar/Assassins-Creed-II-enhanced-patch/main/docs/repository-cover.png)
 
-A community patch for the Windows Steam edition of Assassin’s Creed II. It adapts gameplay and the interface to your display, supports refresh rates above 60 Hz, and adds native integration for supported DualShock 4 and Xbox controllers.
+A community patch for the Windows Steam edition of Assassin’s Creed II. It adapts gameplay and the interface to your display, supports refresh rates above 60 Hz, and adds native integration for supported PlayStation and Xbox controllers.
 
 [Download the latest release](https://github.com/XssentialPilar/Assassins-Creed-II-enhanced-patch/releases/latest) · [Installation](#installation) · [Compatibility](#compatibility)
 
@@ -11,7 +11,7 @@ A community patch for the Windows Steam edition of Assassin’s Creed II. It ada
 - **Display and interface.** Gameplay fills the selected resolution. HUD elements retain their proportions, the minimap fills its frame, and the shop and weapon-wheel overlays extend to the screen edges.
 - **Pre-rendered video.** Videos retain their original proportions. Their surrounding backgrounds extend to fill the display.
 - **High refresh rates.** Selecting a refresh rate above 60 Hz removes the game’s internal 60 FPS wait. Your display settings, VSync, and system performance still affect the frame rate you see.
-- **Controller support.** The patch identifies supported DualShock 4 and Xbox controllers, selects their button icons, and forwards the game’s vibration commands to both motors.
+- **Controller support.** The patch identifies supported DualShock 3, DualShock 4, DualSense, and Xbox controllers, selects their button icons, and forwards the game’s vibration commands when the controller reports rumble support.
 
 ## In-game screenshots
 
@@ -31,7 +31,7 @@ The patch supports Steam app **33230**, Windows build **1843459**.
 2. In your Steam Library, right-click the game and choose **Manage → Browse local files**. If the folder already contains `d3d9.dll` or `SDL3.dll`, please back up those copies outside the game folder.
 3. Extract `d3d9.dll` and `SDL3.dll` beside `AssassinsCreedIIGame.exe`. Launch through Steam and choose your resolution and refresh rate in the game’s graphics settings.
 
-The release includes a SHA-256 checksum. To verify your download in PowerShell, run `Get-FileHash .\AC2-Enhanced-Patch-v1.0.0-win32.zip -Algorithm SHA256` and compare the result with the accompanying `.sha256` file.
+The release includes a SHA-256 checksum. From your download folder, run `Get-FileHash -Path 'AC2-Enhanced-Patch-*-win32.zip' -Algorithm SHA256` in PowerShell and compare the result for your ZIP with the accompanying `.sha256` file.
 
 ### Uninstall
 
@@ -44,6 +44,12 @@ Close the game, remove the two DLLs you installed from the ZIP, and restore any 
 | Gameplay | Checked in-game at **1920 × 1200 (16:10)** and **1440 × 1080 (4:3)**. |
 | Aspect ratios | Automated geometry tests also cover **16:9**, **3:2**, **5:4**, **4:5**, **2:1 (18:9)**, **21:9**, **2.375:1**, **1.85:1**, **2.35:1**, **2.39:1**, **2.40:1**, **2.76:1**, **9:16**, **19.5:1**, and **20:9**. |
 | Controllers | Virtual-device tests cover switching between families, button icons, reconnection, and independent sustained vibration. Physical USB and Bluetooth validation is pending. |
+
+### PlayStation controllers
+
+Connect the controller before launching the game so the game's device enumeration can find it. For DualShock 3, Windows needs a compatible driver. The patch enables SDL’s Sixaxis backend, which can use the Sony driver interface exposed by DsHidMini in SXS mode. [SDL Sixaxis backend](https://wiki.libsdl.org/SDL3/SDL_HINT_JOYSTICK_HIDAPI_PS3_SIXAXIS_DRIVER) · [DsHidMini device modes](https://docs.nefarius.at/projects/DsHidMini/v3/HID-Device-Modes-Explained/#sxs)
+
+DualSense uses the game’s standard rumble commands. DualSense-specific haptics and adaptive trigger effects are outside the patch’s controller features.
 
 ### Troubleshooting
 

@@ -3,7 +3,7 @@
 #include <windows.h>
 #include <xinput.h>
 
-enum class ControllerFamily { Unknown, Xbox, PS4 };
+enum class ControllerFamily { Unknown, Xbox, PS3, PS4, PS5, Count };
 
 bool initialize_controller_input();
 bool bind_controller(DWORD slot, DWORD product);

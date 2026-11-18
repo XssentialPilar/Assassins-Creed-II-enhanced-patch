@@ -2174,7 +2174,8 @@ private:
     UINT shop_trace_frame_{}, shop_trace_count_{};
 #endif
 #ifdef AC2_CONTROLLER_PROMPTS
-    IDirect3DTexture9* prompt_textures_[2][static_cast<unsigned>(PromptButton::Count)]{};
+    IDirect3DTexture9* prompt_textures_[static_cast<unsigned>(ControllerFamily::Count) - 1]
+                                     [static_cast<unsigned>(PromptButton::Count)]{};
 #endif
 #ifdef AC2_VIDEO_FIT
     std::atomic<UINT> output_width_{0}, output_height_{0};

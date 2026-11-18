@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <cstring>
+#include <cwchar>
 
 PromptButton prompt_button(std::uint64_t fingerprint) {
     switch (fingerprint) {
@@ -26,9 +27,10 @@ PromptButton prompt_button(std::uint64_t fingerprint) {
 IDirect3DTexture9* create_prompt_texture(IDirect3DDevice9* device, ControllerFamily family, PromptButton button) {
     constexpr int Size = 32;
     constexpr const wchar_t* Xbox[] = {L"", L"A", L"B", L"X", L"Y", L"LT", L"RT", L"LB", L"RB", L"≡", L"▣"};
-    constexpr const wchar_t* PS4[] = {L"", L"×", L"○", L"□", L"△", L"L2", L"R2", L"L1", L"R1", L"OPT", L"SH"};
+    constexpr const wchar_t* PlayStation[] = {L"", L"×", L"○", L"□", L"△", L"L2", L"R2", L"L1", L"R1", L"OPT", L"SH"};
     const unsigned role = static_cast<unsigned>(button);
-    if (family == ControllerFamily::Unknown || role == 0 || role >= static_cast<unsigned>(PromptButton::Count)) {
+    if (family <= ControllerFamily::Unknown || family >= ControllerFamily::Count ||
+        role == 0 || role >= static_cast<unsigned>(PromptButton::Count)) {
         return nullptr;
     }
 
@@ -49,8 +51,16 @@ IDirect3DTexture9* create_prompt_texture(IDirect3DDevice9* device, ControllerFam
         DeleteDC(dc);
         return nullptr;
     }
-    const auto* label = (family == ControllerFamily::Xbox ? Xbox : PS4)[role];
-    HFONT font = CreateFontW(role <= 4 ? -21 : role <= 8 ? -16 : -12, 0, 0, 0, FW_SEMIBOLD,
+    const auto* label = (family == ControllerFamily::Xbox ? Xbox : PlayStation)[role];
+    if (family == ControllerFamily::PS3 && button == PromptButton::Start) {
+        label = L"START";
+    } else if (family == ControllerFamily::PS3 && button == PromptButton::Back) {
+        label = L"SELECT";
+    } else if (family == ControllerFamily::PS5 && button == PromptButton::Back) {
+        label = L"CREATE";
+    }
+    const int font_height = role <= 4 ? -21 : role <= 8 ? -16 : std::wcslen(label) > 3 ? -8 : -12;
+    HFONT font = CreateFontW(font_height, 0, 0, 0, FW_SEMIBOLD,
                              FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
                              CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH, L"Segoe UI Symbol");
     HGDIOBJ old_bitmap = SelectObject(dc, bitmap);
