@@ -1,8 +1,8 @@
 <Window x:Class="Ac2Setup.SetupWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Assassin’s Creed II Enhanced Patch Setup" Icon="setup.ico"
-        Width="978" Height="663" MinWidth="850" MinHeight="625" WindowStartupLocation="CenterScreen"
+        Title="Assassin’s Creed II Enhanced Patch" Icon="setup.ico"
+        Width="1010" Height="720" MinWidth="850" MinHeight="625" WindowStartupLocation="CenterScreen"
         Background="#EBE8E2" Foreground="#28282A" FontFamily="Segoe UI" UseLayoutRounding="True">
   <Window.Resources>
     <SolidColorBrush x:Key="Ink" Color="#28282A" />
@@ -50,7 +50,7 @@
         <TextBlock FontSize="24" FontWeight="Light" Text="Assassin’s Creed II"/>
         <TextBlock FontSize="36" FontWeight="Light" Text="Enhanced Patch" LineHeight="42" Margin="0,4,0,14"/>
         <Border Background="{StaticResource Accent}" Width="44" Height="3" HorizontalAlignment="Left" Margin="0,2,0,16"/>
-        <TextBlock FontSize="13.5" Foreground="{StaticResource Muted}" Text="Community patch for the Windows Steam edition." Width="194" HorizontalAlignment="Left"/>
+        <TextBlock FontSize="13.5" Foreground="{StaticResource Muted}" Text="{Binding [Edition]}" Width="194" HorizontalAlignment="Left"/>
           <TextBlock x:Name="VersionLabel" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource Accent}" Margin="0,10,0,0"/>
       </StackPanel>
     </Grid>
@@ -62,44 +62,49 @@
           <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <StackPanel>
-          <TextBlock Text="Install Enhanced Patch" FontSize="32" FontWeight="Light"/>
-          <TextBlock Text="Choose your Steam game folder and input preferences." FontSize="14" Foreground="{StaticResource Muted}" Margin="0,7,0,0"/>
+          <ComboBox x:Name="LanguagePicker" HorizontalAlignment="Right" Width="156" FlowDirection="LeftToRight"
+                    FontSize="13" Padding="9,5" Margin="0,0,0,9" AutomationProperties.Name="Language"
+                    SelectionChanged="ChangeLanguage"/>
+          <TextBlock Text="{Binding [Title]}" FontSize="30" FontWeight="Light"/>
+          <TextBlock Text="{Binding [Description]}" FontSize="14" Foreground="{StaticResource Muted}" Margin="0,7,0,0"/>
         </StackPanel>
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,22,0,11">
           <StackPanel>
-            <TextBlock Text="Game folder" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,9"/>
+            <TextBlock Text="{Binding [Folder]}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,9"/>
             <Grid>
               <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-              <TextBox x:Name="GameFolder" AutomationProperties.Name="Game folder" FontSize="13" VerticalContentAlignment="Center"
+              <TextBox x:Name="GameFolder" AutomationProperties.Name="{Binding [Folder]}" FlowDirection="LeftToRight" FontSize="13" VerticalContentAlignment="Center"
                        Padding="10,8" BorderBrush="{StaticResource Line}" Background="#FFFEFC"/>
-              <Button x:Name="BrowseButton" Grid.Column="1" Margin="8,0,0,0" Content="Browse…" Click="BrowseFolder"/>
+              <Button x:Name="BrowseButton" Grid.Column="1" Margin="8,0,0,0" Content="{Binding [Browse]}" Click="BrowseFolder"/>
             </Grid>
             <Border Background="#FFFCF9" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16,13" Margin="0,16,0,0">
               <StackPanel>
                 <Label Target="{Binding ElementName=PromptMode}" FontSize="14" FontWeight="SemiBold"
-                       Content="Keyboard and mouse prompts" Padding="0" Margin="0,0,0,7"/>
+                       Content="{Binding [Prompts]}" Padding="0" Margin="0,0,0,7"/>
                 <Grid>
                   <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                   <ComboBox x:Name="PromptMode" FontSize="14" Padding="9,6">
-                    <ComboBoxItem Content="Show assigned keys"/>
-                    <ComboBoxItem Content="Show original game icons"/>
+                    <ComboBoxItem Content="{Binding [Assigned]}"/>
+                    <ComboBoxItem Content="{Binding [Original]}"/>
                   </ComboBox>
                   <Button x:Name="PromptArtworkButton" Grid.Column="1" Margin="9,0,0,0" Padding="12,6"
-                          Content="View input prompts" Click="ShowPromptArtwork"/>
+                          Content="{Binding [Artwork]}" Click="ShowPromptArtwork"/>
                 </Grid>
                 <TextBlock Foreground="{StaticResource Muted}" FontSize="12.5" Margin="0,7,0,0"
-                           Text="To switch while playing, press Ctrl + Alt + F11."/>
+                           Text="{Binding [Shortcut]}"/>
               </StackPanel>
             </Border>
             <Border Background="#FFFCF9" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16,13" Margin="0,12,0,0">
               <StackPanel>
-                <TextBlock FontWeight="SemiBold" FontSize="15" Text="Wireless controllers"/>
+                <TextBlock FontWeight="SemiBold" FontSize="15" Text="{Binding [Wireless]}"/>
                 <TextBlock Foreground="{StaticResource Muted}" FontSize="13" Margin="0,5,0,12"
-                           Text="Pair DualShock 4, DualSense, and Bluetooth-capable Xbox controllers in Windows before launching the game."/>
-                <CheckBox x:Name="InstallPs3" Content="Set up DualShock 3 Bluetooth support" FontSize="14" FontWeight="SemiBold" AutomationProperties.Name="Install DualShock 3 drivers"/>
+                           Text="{Binding [Pair]}"/>
+                <CheckBox x:Name="InstallPs3" FontSize="14" FontWeight="SemiBold" AutomationProperties.Name="{Binding [Ps3]}">
+                  <TextBlock Text="{Binding [Ps3]}"/>
+                </CheckBox>
                 <TextBlock Foreground="{StaticResource Muted}" FontSize="12.5" Margin="19,7,0,0"
-                           Text="Downloads and verifies the official DsHidMini and BthPS3 installers. Connect DualShock 3 by USB once to pair it, then select the SXS profile for PlayStation button prompts."/>
-                <TextBlock Margin="0,11,0,0" FontSize="12.5"><Hyperlink Foreground="{StaticResource Accent}" Click="OpenBluetooth">Open Windows Bluetooth settings</Hyperlink></TextBlock>
+                           Text="{Binding [Ps3Details]}"/>
+                <TextBlock Margin="0,11,0,0" FontSize="12.5"><Hyperlink Foreground="{StaticResource Accent}" Click="OpenBluetooth"><Run Text="{Binding [Bluetooth]}"/></Hyperlink></TextBlock>
               </StackPanel>
             </Border>
           </StackPanel>
@@ -108,13 +113,13 @@
           <Border BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,12,0,12">
             <StackPanel>
               <TextBlock x:Name="Status" FontSize="13" Foreground="{StaticResource Muted}"
-                         Text="Existing patch files will be backed up before installation." AutomationProperties.LiveSetting="Polite"/>
+                         AutomationProperties.LiveSetting="Polite"/>
               <ProgressBar x:Name="Progress" Height="3" Margin="0,8,0,0" Foreground="{StaticResource Accent}" Visibility="Collapsed"/>
             </StackPanel>
           </Border>
           <DockPanel LastChildFill="False">
-            <Button x:Name="RestoreButton" Content="Restore previous files" Click="RestorePatch" DockPanel.Dock="Left"/>
-            <Button x:Name="InstallButton" Content="Install patch" IsDefault="True" Click="InstallPatch" DockPanel.Dock="Right"
+            <Button x:Name="RestoreButton" Content="{Binding [Restore]}" Click="RestorePatch" DockPanel.Dock="Left"/>
+            <Button x:Name="InstallButton" Content="{Binding [Install]}" IsDefault="True" Click="InstallPatch" DockPanel.Dock="Right"
                     MinWidth="137" Foreground="White" Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}"/>
           </DockPanel>
         </StackPanel>

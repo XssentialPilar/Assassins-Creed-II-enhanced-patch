@@ -1,10 +1,11 @@
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
-using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Json;
 using System.Security.Cryptography;
-using System.Text.Json;
+using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
@@ -26,7 +27,7 @@ internal static class PatchFiles
     {
         using var registry = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam");
         string? steam = registry?.GetValue("SteamPath") as string;
-        if (string.IsNullOrEmpty(steam)) return "";
+        if (steam == null || steam.Length == 0) return "";
         var libraries = new List<string> { steam };
         string config = Path.Combine(steam, "steamapps", "libraryfolders.vdf");
         try
@@ -57,7 +58,7 @@ internal static class PatchFiles
         Directory.CreateDirectory(snapshot);
         Snapshot(folder, snapshot);
         foreach (string name in PatchNames)
-            File.WriteAllText(Path.Combine(snapshot, name + ".installed"), Convert.ToHexString(SHA256.HashData(payload[name])));
+            File.WriteAllText(Path.Combine(snapshot, name + ".installed"), Hash(payload[name]));
         EnsureGameClosed(folder);
         try
         {
@@ -81,11 +82,11 @@ internal static class PatchFiles
     {
         folder = Validate(folder);
         string state = Path.Combine(folder, BackupFolder);
-        if (!Directory.Exists(state)) throw new IOException("There is no setup backup in this folder.");
+        if (!Directory.Exists(state)) throw new IOException(Languages.Text("MissingBackup"));
         using var gate = File.Open(Path.Combine(state, "setup.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-        string? snapshot = Directory.EnumerateDirectories(state).OrderDescending(StringComparer.Ordinal)
+        string? snapshot = Directory.EnumerateDirectories(state).OrderByDescending(path => path, StringComparer.Ordinal)
             .FirstOrDefault(path => File.Exists(Path.Combine(path, "complete")));
-        if (snapshot == null) throw new IOException("There is no setup backup in this folder.");
+        if (snapshot == null) throw new IOException(Languages.Text("MissingBackup"));
         foreach (string name in PatchNames)
         {
             string installed = Path.Combine(folder, name);
@@ -114,7 +115,7 @@ internal static class PatchFiles
         Validate(folder);
         if (PatchNames.Any(name => File.Exists(Path.Combine(folder, name))))
             throw new IOException("The test folder must start without patch DLLs.");
-        byte[] previous = "Existing test file"u8.ToArray();
+        byte[] previous = Encoding.ASCII.GetBytes("Existing test file");
         File.WriteAllBytes(Path.Combine(folder, "d3d9.dll"), previous);
         Install(folder);
         if (!string.IsNullOrEmpty(Install(folder))) throw new IOException("Repeated install was not a no-op.");
@@ -142,7 +143,7 @@ internal static class PatchFiles
     {
         using var embedded = OpenPayloadStream();
         using var expected = File.OpenRead(file);
-        if (!SHA256.HashData(embedded).AsSpan().SequenceEqual(SHA256.HashData(expected)))
+        if (Hash(embedded) != Hash(expected))
             throw new IOException("The installer embeds a different patch archive.");
         _ = ReadPayload();
         _ = PromptPreview();
@@ -159,7 +160,7 @@ internal static class PatchFiles
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         if (!WritePrivateProfileStringW("Interface", "AssignedKeys", enhanced ? "1" : "0", path))
-            throw new IOException("Windows could not save the keyboard and mouse prompt preference.");
+            throw new IOException(Languages.Text("SettingsFailure"));
     }
 
     [DllImport("kernel32.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
@@ -171,11 +172,11 @@ internal static class PatchFiles
 
     private static string Validate(string folder)
     {
-        if (string.IsNullOrWhiteSpace(folder)) throw new IOException("Select the Assassin’s Creed II folder first.");
+        if (string.IsNullOrWhiteSpace(folder)) throw new IOException(Languages.Text("EmptyFolder"));
         folder = Path.GetFullPath(folder.Trim());
         string exe = Path.Combine(folder, GameExe);
         if (!File.Exists(exe) || Hash(exe) != GameHash)
-            throw new IOException("Choose the folder containing the supported Windows Steam build of Assassin’s Creed II.");
+            throw new IOException(Languages.Text("InvalidGame"));
         EnsureGameClosed(folder);
         return folder;
     }
@@ -194,7 +195,7 @@ internal static class PatchFiles
                 catch (System.ComponentModel.Win32Exception) { locked = true; }
             }
         }
-        if (locked) throw new IOException("Close Assassin’s Creed II before changing its patch files.");
+        if (locked) throw new IOException(Languages.Text("RunningGame"));
     }
 
     private static Dictionary<string, byte[]> ReadPayload()
@@ -203,9 +204,7 @@ internal static class PatchFiles
         return PatchNames.ToDictionary(name => name, name => ReadVerified(zip, name));
     }
 
-    private static Stream OpenPayloadStream() =>
-        Assembly.GetExecutingAssembly().GetManifestResourceStream("Ac2Setup.Patch.zip")
-        ?? throw new IOException("This installer is missing its patch payload.");
+    private static Stream OpenPayloadStream() => PatchPayload.Open();
 
     private static ZipArchive OpenPackage() => new(OpenPayloadStream(), ZipArchiveMode.Read);
 
@@ -213,13 +212,9 @@ internal static class PatchFiles
     {
         using var zip = OpenPackage();
         using var input = OpenEntry(zip, "patch-manifest.json");
-        using var manifest = JsonDocument.Parse(input);
-        JsonElement root = manifest.RootElement;
-        string version = root.GetProperty("version").GetString()
-            ?? throw new IOException("The patch manifest is missing its version.");
-        var hashes = root.GetProperty("sha256").EnumerateObject().ToDictionary(
-            entry => entry.Name, entry => entry.Value.GetString() ?? "");
-        return new PackageManifest(version, hashes);
+        var serializer = new DataContractJsonSerializer(typeof(PackageManifest),
+            new DataContractJsonSerializerSettings { UseSimpleDictionaryFormat = true });
+        return (PackageManifest)(serializer.ReadObject(input) ?? throw new IOException("Invalid patch manifest."));
     }
 
     private static Stream OpenEntry(ZipArchive zip, string name) =>
@@ -231,23 +226,45 @@ internal static class PatchFiles
         using var contents = new MemoryStream();
         input.CopyTo(contents);
         byte[] data = contents.ToArray();
-        string actual = Convert.ToHexString(SHA256.HashData(data));
+        string actual = Hash(data);
         if (!Manifest.Value.Hashes.TryGetValue(name, out string? expected) ||
             !string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
             throw new IOException($"The checksum for {name} does not match this installer.");
         return data;
     }
 
-    private sealed record PackageManifest(string Version, Dictionary<string, string> Hashes);
+    [DataContract]
+    private sealed class PackageManifest
+    {
+        [DataMember(Name = "version", IsRequired = true)]
+        public string Version { get; set; } = "";
+
+        [DataMember(Name = "sha256", IsRequired = true)]
+        public Dictionary<string, string> Hashes { get; set; } = new();
+    }
 
     private static string Hash(string file)
     {
         using var stream = File.OpenRead(file);
-        return Convert.ToHexString(SHA256.HashData(stream));
+        return Hash(stream);
     }
 
+    private static string Hash(Stream stream)
+    {
+        using var sha = SHA256.Create();
+        return Hex(sha.ComputeHash(stream));
+    }
+
+    private static string Hash(byte[] data)
+    {
+        using var sha = SHA256.Create();
+        return Hex(sha.ComputeHash(data));
+    }
+
+    internal static string Hex(byte[] bytes) => BitConverter.ToString(bytes).Replace("-", "");
+
     private static bool Matches(string file, byte[] data) =>
-        File.Exists(file) && Hash(file) == Convert.ToHexString(SHA256.HashData(data));
+        File.Exists(file) && Hash(file) == Hash(data);
 
     private static void Snapshot(string folder, string snapshot)
     {
@@ -275,7 +292,10 @@ internal static class PatchFiles
         try
         {
             File.WriteAllBytes(pending, data);
-            File.Move(pending, file, overwrite: true);
+            if (File.Exists(file))
+                File.Replace(pending, file, null);
+            else
+                File.Move(pending, file);
         }
         finally { File.Delete(pending); }
     }

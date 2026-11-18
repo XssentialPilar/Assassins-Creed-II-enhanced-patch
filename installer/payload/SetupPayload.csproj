@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>AC2EnhancedPatch.Payload</AssemblyName>
+    <RootNamespace>Ac2Setup</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="$(PatchZip)" LogicalName="Ac2Setup.Patch.zip" Condition="'$(PatchZip)' != ''" />
+  </ItemGroup>
+  <Target Name="VerifyPayload" BeforeTargets="PrepareForBuild" Condition="'$(PatchZip)' == ''">
+    <Error Text="Pass the tested patch ZIP with -p:PatchZip=PATH." />
+  </Target>
+</Project>

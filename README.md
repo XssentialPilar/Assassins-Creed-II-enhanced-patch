@@ -4,9 +4,7 @@
 
 A community patch for the Windows Steam edition of Assassin’s Creed II. It adapts gameplay and the interface to your display, supports refresh rates above 60 Hz, and adds native integration for supported PlayStation and Xbox controllers.
 
-[Download the latest preview](https://github.com/XssentialPilar/Assassins-Creed-II-enhanced-patch/releases/tag/v1.1.0-preview.7) · [Download the stable release](https://github.com/XssentialPilar/Assassins-Creed-II-enhanced-patch/releases/latest) · [Installation](#installation) · [Compatibility](#compatibility)
-
-The Windows installer and the new input features described below are available in **v1.1.0-preview.7**.
+[Download the latest release](https://github.com/XssentialPilar/Assassins-Creed-II-enhanced-patch/releases/latest) · [Installation](#installation) · [Compatibility](#compatibility)
 
 ## What the patch changes
 
@@ -16,11 +14,7 @@ The Windows installer and the new input features described below are available i
 - **Controller support.** The patch identifies supported DualShock 3, DualShock 4, DualSense, and Xbox controllers and shows each family's button icons. Each supported button has a pressed state based on the physical input. DualShock 3 uses colored symbols with START and SELECT. DualSense uses monochrome symbols with Create and Options.
 - **Keyboard and mouse prompts.** Supported menus and the gameplay action HUD show the active bindings in round, translucent prompts. A pressed key uses a light background with a dark legend. Press **Ctrl + Alt + F11** while the game is focused to switch between assigned keys and the original icons. The patch displays a confirmation in-game and remembers your choice.
 
-Editable artwork is included for each input family. [Keyboard and mouse](assets/prompts/keyboard-mouse.svg) · [DualShock 3](assets/prompts/dualshock-3.svg) · [DualShock 4](assets/prompts/dualshock-4.svg) · [Xbox](assets/prompts/xbox.svg) · [DualSense](assets/prompts/dualsense.svg)
-
-
-
-*The patch’s rendered prompts with default PC bindings. Remapping a key updates its prompt after the game saves the binding.*
+Editable SVG artwork is available for all five input families. [Input artwork](https://github.com/XssentialPilar/Assassins-Creed-II-enhanced-patch/tree/v1.1.0/assets/prompts)
 
 ## In-game screenshots
 
@@ -38,11 +32,13 @@ The patch supports Steam app **33230**, Windows build **1843459**.
 
 ### Windows setup
 
-When a release includes a setup ZIP, extract it and run the versioned setup executable. Setup typically finds your Steam game folder. You can also select it with **Browse**.
+Extract the entire `-Setup-win-x64.zip` and run the versioned setup executable. Keep `AC2EnhancedPatch.Payload.dll` next to setup in the extracted folder. It contains the patch and the prompt artwork. Setup typically finds your Steam game folder, or you can select it with **Browse**.
+
+Setup uses .NET Framework 4.8, which is included with Windows 10 22H2 and Windows 11. It opens in a supported Windows display language when available, and you can select any of its 25 languages in the top corner. [Microsoft system requirements](https://learn.microsoft.com/dotnet/framework/get-started/system-requirements)
 
 Select **View input prompts** to see the released and pressed states for every input family included in that installer. Choose **Show assigned keys** for PC prompts or **Show original game icons** to retain the game’s symbols. Then select **Install patch**. Setup checks the files against the package and backs up any existing patch files. **Restore previous files** brings back the files from before the last setup installation.
 
-[View the Windows setup](https://raw.githubusercontent.com/XssentialPilar/Assassins-Creed-II-enhanced-patch/v1.1.0-preview.7/docs/screenshots/setup-v1.1.0-preview.7.png)
+[View the Windows setup](https://raw.githubusercontent.com/XssentialPilar/Assassins-Creed-II-enhanced-patch/v1.1.0/docs/screenshots/setup-v1.1.0.png)
 
 ### Manual installation
 
@@ -73,7 +69,7 @@ The patch uses the two vibration levels sent by the game. On DualSense, active v
 
 On DualShock 4 and DualSense, the light bar uses warm white with a short carmine accent for strong game vibration. The patch sends a dark state when the game loses focus.
 
-The preview converts the game's vibration levels to two haptic waveforms on DualSense. Over USB it uses a verified four-channel device endpoint. Over Bluetooth it sends stereo PCM directly to the controller's actuators. Standard rumble is used when the haptic transport fails. To select standard Bluetooth rumble, set `DualSenseBluetoothHaptics=0` under `[Controllers]` in `AC2EnhancedPatch.ini` and restart the game. The game supplies the timing and strength. The patch generates the waveforms. [Windows audio endpoint identity](https://learn.microsoft.com/en-us/windows/win32/coreaudio/device-properties) · [Bluetooth haptic packet reference](https://github.com/Lelisvaldo/godot-dualsense-native/blob/main/native/src/ds_protocol.cpp#L219)
+The patch converts the game's vibration levels to two haptic waveforms on DualSense. Over USB it uses a verified four-channel device endpoint. Over Bluetooth it sends stereo PCM directly to the controller's actuators. Standard rumble is used when the haptic transport fails. To select standard Bluetooth rumble, set `DualSenseBluetoothHaptics=0` under `[Controllers]` in `AC2EnhancedPatch.ini` and restart the game. The game supplies the timing and strength. The patch generates the waveforms. [Windows audio endpoint identity](https://learn.microsoft.com/en-us/windows/win32/coreaudio/device-properties) · [Bluetooth haptic packet reference](https://github.com/Lelisvaldo/godot-dualsense-native/blob/main/native/src/ds_protocol.cpp#L219)
 
 ### Troubleshooting
 

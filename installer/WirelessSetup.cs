@@ -2,14 +2,18 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
-using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 
 namespace Ac2Setup;
 
 internal static class WirelessSetup
 {
-    private sealed record Package(string Name, string Url, string Hash);
+    private sealed class Package(string name, string url, string hash)
+    {
+        internal string Name { get; } = name;
+        internal string Url { get; } = url;
+        internal string Hash { get; } = hash;
+    }
     private static readonly Package Bluetooth = new("BthPS3 3.2.1",
         "https://github.com/nefarius/BthPS3/releases/download/setup-v3.2.1/Nefarius_BthPS3_Drivers_x64_arm64_v3.2.1.msi",
         "704dbfc3e7fe961b255ed53aadc21c730cc5c250686eb29fbb6c82c34bfcc1be");
@@ -24,8 +28,9 @@ internal static class WirelessSetup
 
     internal static async Task<bool> Install(IProgress<string> progress)
     {
-        if (RuntimeInformation.OSArchitecture != Architecture.X64 || !OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763))
-            throw new IOException("The patch was installed. This DualShock 3 setup supports Windows 10 1809+ and 11 on x64.");
+        if (Environment.OSVersion.Version < new Version(10, 0, 17763) ||
+            !string.Equals(Environment.GetEnvironmentVariable("PROCESSOR_ARCHITECTURE"), "AMD64", StringComparison.OrdinalIgnoreCase))
+            throw new IOException(Languages.Text("DriverPlatform"));
         string cache = CreateCache();
         try
         {
@@ -41,28 +46,26 @@ internal static class WirelessSetup
             var downloaded = new List<(Package Package, string Path)>();
             foreach (var package in packages)
             {
-                progress.Report($"Downloading and verifying {package.Name}…");
+                progress.Report(Languages.Format("Download", package.Name));
                 downloaded.Add((package, await Download(package, cache, CancellationToken.None)));
             }
             bool restart = false;
             foreach (var (package, path) in downloaded)
             {
-                progress.Report($"Follow the {package.Name} installation window.");
+                progress.Report(Languages.Format("DriverWindow", package.Name));
                 var start = new ProcessStartInfo { UseShellExecute = true, Verb = "runas" };
                 if (package == Desktop)
                 {
                     start.FileName = path;
-                    start.ArgumentList.Add("/install");
+                    start.Arguments = "/install /norestart";
                 }
                 else
                 {
                     start.FileName = Path.Combine(Environment.SystemDirectory, "msiexec.exe");
-                    start.ArgumentList.Add("/i");
-                    start.ArgumentList.Add(path);
+                    start.Arguments = $"/i \"{path}\" /norestart";
                 }
-                start.ArgumentList.Add("/norestart");
                 using var installer = Process.Start(start) ?? throw new IOException($"Could not open {package.Name}.");
-                await installer.WaitForExitAsync();
+                await Task.Run(installer.WaitForExit);
                 if (installer.ExitCode is 3010 or 1641) restart = true;
                 else if (installer.ExitCode != 0)
                     throw new IOException($"{package.Name} exited with code {installer.ExitCode}.");
@@ -71,11 +74,11 @@ internal static class WirelessSetup
         }
         catch (Win32Exception error) when (error.NativeErrorCode == 1223)
         {
-            throw new IOException("The patch was installed. The optional DualShock 3 driver setup was canceled.", error);
+            throw new IOException(Languages.Text("DriverCancelled"), error);
         }
         catch (Exception error)
         {
-            throw new IOException($"The patch was installed. DualShock 3 setup did not finish. {error.Message}", error);
+            throw new IOException(Languages.Text("DriverFailure") + " " + error.Message, error);
         }
         finally { RemoveCache(cache); }
     }
@@ -90,7 +93,8 @@ internal static class WirelessSetup
         finally { RemoveCache(cache); }
     }
 
-    private static string CreateCache() => Directory.CreateTempSubdirectory("ac2-setup-").FullName;
+    private static string CreateCache() =>
+        Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), $"ac2-setup-{Guid.NewGuid():N}")).FullName;
 
     private static void RemoveCache(string cache)
     {
@@ -105,14 +109,14 @@ internal static class WirelessSetup
         using (var response = await Client.GetAsync(package.Url, HttpCompletionOption.ResponseHeadersRead, cancel))
         {
             response.EnsureSuccessStatusCode();
-            await using var input = await response.Content.ReadAsStreamAsync(cancel);
-            await using var output = File.Create(path);
-            await input.CopyToAsync(output, cancel);
+            using var input = await response.Content.ReadAsStreamAsync();
+            using var output = File.Create(path);
+            await input.CopyToAsync(output, 81920, cancel);
         }
-        await using var downloaded = File.OpenRead(path);
-        byte[] hash = package == Desktop ? await SHA512.HashDataAsync(downloaded, cancel)
-            : await SHA256.HashDataAsync(downloaded, cancel);
-        if (!string.Equals(Convert.ToHexString(hash), package.Hash, StringComparison.OrdinalIgnoreCase))
+        using var downloaded = File.OpenRead(path);
+        using HashAlgorithm algorithm = package == Desktop ? SHA512.Create() : SHA256.Create();
+        byte[] hash = algorithm.ComputeHash(downloaded);
+        if (!string.Equals(PatchFiles.Hex(hash), package.Hash, StringComparison.OrdinalIgnoreCase))
             throw new IOException($"The checksum for {package.Name} did not match its official release.");
         return path;
     }

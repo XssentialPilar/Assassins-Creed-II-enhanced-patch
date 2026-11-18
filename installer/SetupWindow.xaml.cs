@@ -5,7 +5,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using Microsoft.Win32;
 
 namespace Ac2Setup;
 
@@ -15,21 +14,37 @@ public partial class SetupWindow : Window
 
     public SetupWindow() : this(preview: false) {}
 
-    internal SetupWindow(bool preview)
+    internal SetupWindow(bool preview, Language? language = null)
     {
         InitializeComponent();
-        VersionLabel.Text = $"Version {PatchFiles.Version}";
+        VersionLabel.Text = $"v{PatchFiles.Version}";
+        LanguagePicker.ItemsSource = Languages.All;
+        LanguagePicker.SelectedItem = language ?? Languages.Current;
         PromptMode.SelectedIndex = preview || PatchFiles.EnhancedPrompts ? 0 : 1;
-        GameFolder.Text = preview ? @"D:\SteamLibrary\steamapps\common\Assassin's Creed 2" : PatchFiles.FindGame();
-        if (preview) InstallPs3.IsChecked = true;
+        GameFolder.Text = preview ? @"C:\SteamLibrary\steamapps\common\Assassin's Creed 2" : PatchFiles.FindGame();
     }
 
     internal Grid Surface => Page;
 
+    private void ChangeLanguage(object sender, SelectionChangedEventArgs e)
+    {
+        if (LanguagePicker.SelectedItem is not Language language) return;
+        Languages.Current = language;
+        Page.DataContext = language.Strings;
+        Page.FlowDirection = language.Tag == "ar" ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+        VersionLabel.FlowDirection = FlowDirection.LeftToRight;
+        Status.Text = Languages.Text("Ready");
+    }
+
     private void BrowseFolder(object sender, RoutedEventArgs e)
     {
-        var picker = new OpenFolderDialog { Title = "Choose the Assassin’s Creed II game folder" };
-        if (picker.ShowDialog(this) == true) GameFolder.Text = picker.FolderName;
+        using var picker = new System.Windows.Forms.FolderBrowserDialog
+        {
+            Description = Languages.Text("Folder"),
+            SelectedPath = GameFolder.Text,
+            ShowNewFolderButton = false,
+        };
+        if (picker.ShowDialog() == System.Windows.Forms.DialogResult.OK) GameFolder.Text = picker.SelectedPath;
     }
 
     private void OpenBluetooth(object sender, RoutedEventArgs e)
@@ -54,7 +69,7 @@ public partial class SetupWindow : Window
             {
                 Owner = this,
                 Icon = Icon,
-                Title = $"Input prompts · {PatchFiles.Version}",
+                Title = $"{Languages.Text("Artwork")} · v{PatchFiles.Version}",
                 Width = Math.Min(1300, SystemParameters.WorkArea.Width),
                 Height = Math.Min(900, SystemParameters.WorkArea.Height),
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -62,7 +77,7 @@ public partial class SetupWindow : Window
             };
             display.ShowDialog();
         }
-        catch (Exception error) { Status.Text = error.Message; }
+        catch (Exception error) { Status.Text = Languages.Text("Failure") + " " + error.Message; }
     }
 
     private async void InstallPatch(object sender, RoutedEventArgs e)
@@ -73,18 +88,13 @@ public partial class SetupWindow : Window
         await RunOperation(async () =>
         {
             string backup = await Task.Run(() => PatchFiles.Install(folder));
-            string installed = string.IsNullOrEmpty(backup)
-                ? $"Version {PatchFiles.Version} is already installed."
-                : $"Version {PatchFiles.Version} installed.";
+            string installed = Languages.Text(string.IsNullOrEmpty(backup) ? "AlreadyInstalled" : "Installed");
             try { PatchFiles.SetEnhancedPrompts(enhancedPrompts); }
             catch (IOException error) { return $"{installed} {error.Message}"; }
-            catch (UnauthorizedAccessException) { return $"{installed} Windows denied access to the prompt settings."; }
-            string promptMode = enhancedPrompts ? "Assigned keys are selected." : "Original game icons are selected.";
-            if (!wireless) return $"{installed} {promptMode} Launch Assassin’s Creed II from Steam.";
+            catch (UnauthorizedAccessException) { return $"{installed} {Languages.Text("SettingsFailure")}"; }
+            if (!wireless) return installed + " " + Languages.Text("Launch");
             bool restart = await WirelessSetup.Install(new Progress<string>(text => Status.Text = text));
-            return restart
-                ? "Patch and drivers installed. Restart Windows before connecting DualShock 3 by USB to pair it."
-                : "Patch and drivers installed. Connect DualShock 3 by USB to pair it, then choose SXS in DsHidMini Control App.";
+            return installed + " " + Languages.Text(restart ? "DriverRestart" : "DriverPair");
         });
     }
 
@@ -94,7 +104,7 @@ public partial class SetupWindow : Window
         await RunOperation(async () =>
         {
             await Task.Run(() => PatchFiles.Restore(folder));
-            return "The files from before the last installation were restored.";
+            return Languages.Text("Restored");
         });
     }
 
@@ -102,18 +112,20 @@ public partial class SetupWindow : Window
     {
         busy = true;
         InstallButton.IsEnabled = RestoreButton.IsEnabled = BrowseButton.IsEnabled =
-            GameFolder.IsEnabled = InstallPs3.IsEnabled = PromptMode.IsEnabled = PromptArtworkButton.IsEnabled = false;
-        Status.Text = "Checking the game folder and patch files…";
+            GameFolder.IsEnabled = InstallPs3.IsEnabled = PromptMode.IsEnabled = PromptArtworkButton.IsEnabled =
+                LanguagePicker.IsEnabled = false;
+        Status.Text = Languages.Text("Working");
         Progress.Visibility = Visibility.Visible;
         Progress.IsIndeterminate = true;
         try { Status.Text = await work(); }
-        catch (UnauthorizedAccessException) { Status.Text = "Windows denied access to the game folder. Run this setup as administrator to install here."; }
-        catch (Exception error) { Status.Text = error.Message; }
+        catch (UnauthorizedAccessException) { Status.Text = Languages.Text("Permission"); }
+        catch (Exception error) { Status.Text = Languages.Text("Failure") + " " + error.Message; }
         finally
         {
             busy = false;
             InstallButton.IsEnabled = RestoreButton.IsEnabled = BrowseButton.IsEnabled =
-                GameFolder.IsEnabled = InstallPs3.IsEnabled = PromptMode.IsEnabled = PromptArtworkButton.IsEnabled = true;
+                GameFolder.IsEnabled = InstallPs3.IsEnabled = PromptMode.IsEnabled = PromptArtworkButton.IsEnabled =
+                    LanguagePicker.IsEnabled = true;
             Progress.Visibility = Visibility.Collapsed;
         }
     }

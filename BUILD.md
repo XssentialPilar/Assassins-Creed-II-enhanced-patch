@@ -14,7 +14,7 @@ foreach ($name in 'display', 'view', 'video', 'controller') {
     if ($LASTEXITCODE -ne 0) { throw "Failed test $name" }
 }
 
-$version = '1.1.0-preview.7'
+$version = '1.1.0'
 $tiles = New-Item -ItemType Directory -Path build/prompt-atlas -Force
 & "$build/ac2_controller_smoke.exe" --render-atlas $tiles.FullName
 if ($LASTEXITCODE -ne 0) { throw 'Failed to export prompt artwork.' }
@@ -30,19 +30,17 @@ The packaging command writes a ZIP and its SHA-256 file to `dist/`. Use the buil
 
 ## Windows setup
 
-Use the .NET 10 SDK or newer to build the self-contained WPF setup. The setup embeds the tested x86 patch ZIP.
+Use the .NET 10 SDK or newer on Windows to build the x64 WPF setup targeting .NET Framework 4.8. The private payload DLL embeds the tested x86 patch ZIP. Setup uses the Windows installation of .NET Framework.
 
 ```powershell
 $patch = (Resolve-Path "dist/AC2-Enhanced-Patch-v$version-win32.zip").Path
 $setup = Join-Path $env:TEMP ("ac2-setup-" + [guid]::NewGuid().ToString('N'))
-dotnet publish installer/Setup.csproj -c Release -r win-x64 --self-contained true `
-    -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
-    -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false `
+dotnet build installer/Setup.csproj -c Release -p:DebugType=None -p:DebugSymbols=false `
     "-p:PatchZip=$patch" "-p:Version=$version" -o $setup
 python tools/package_setup.py $version --exe "$setup/AC2-Enhanced-Patch-Setup.exe" --patch $patch
 ```
 
-The setup ZIP includes the .NET Runtime and Windows Desktop redistribution notices. Packaging verifies that setup embeds the exact manual ZIP, including the DLLs and the preview. `--preview <file.png>` renders the setup window and `--prompt-preview <file.png>` exports the artwork shown by setup. `--verify <isolated-game-fixture>` checks installation, repeat install, restore, and the prompt settings with a copy of the supported game executable. `--verify-drivers` downloads and checks each optional package without launching it.
+Packaging verifies that the private DLL contains the exact manual ZIP, including its DLLs and prompt artwork. Keep the setup executable, its configuration file, and the private DLL together. `--preview <file.png>` renders the setup window and `--prompt-preview <file.png>` exports the artwork shown by setup. `--verify-languages <folder>` verifies the 25 translation entries and renders the setup for each language. `--verify <isolated-game-fixture>` checks installation, repeat install, restore, and the prompt settings with a copy of the supported game executable. `--verify-drivers` downloads and checks each optional package.
 
 ## Visual and performance checks
 
