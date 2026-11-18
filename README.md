@@ -1,33 +1,42 @@
 # Assassin’s Creed II Enhanced Patch
 
-[Español](README.es.md) · [Download the latest release](../../releases/latest)
+A community patch for the Windows Steam edition of Assassin’s Creed II. It adapts gameplay and the interface to your display, supports refresh rates above 60 Hz, and adds native integration for supported DualShock 4 and Xbox controllers.
 
-A community patch for the Windows Steam edition of Assassin’s Creed II.
+[Download the latest release](https://github.com/XssentialPilar/assassins-creed-ii-enhanced-patch/releases/latest) · [Installation](#installation) · [Compatibility](#compatibility)
 
-## Features
+![Ezio at a viewpoint over Monteriggioni, with the complete HUD visible at 1920 × 1200](docs/screenshots/monteriggioni-viewpoint-16x10.png)
 
-- Full-screen gameplay at the selected aspect ratio, with proportional scaling for the HUD and menus.
-- Edge-aligned action prompts, money, equipment and minimap. The radar stays filled and the weapon wheel and shop overlays reach the screen edges.
-- Proportionate intro and pre-rendered video playback, with backgrounds extended to fill the screen.
-- The internal 60 FPS wait is lifted when the selected refresh rate exceeds 60 Hz.
-- Native input integration identifies supported DualShock 4 and Xbox controllers, selects the matching button glyphs, and forwards both vibration motors.
+*Monteriggioni at 1920 × 1200 (16:10). The action prompts and minimap remain visible at the right edge.*
 
-## Install
+## What the patch changes
 
-Requires the Windows Steam build **1843459** of app **33230**. In Steam, open the game's properties and browse its installed files.
+- **Display and interface.** The game fills the selected resolution. HUD elements retain their proportions, the minimap fills its frame, and the shop and weapon-wheel overlays reach the screen edges.
+- **Pre-rendered video.** Videos retain their original proportions while the surrounding background fills the display.
+- **High refresh rates.** Selecting a refresh rate above 60 Hz removes the game’s internal 60 FPS wait.
+- **Controller support.** Supported DualShock 4 and Xbox controllers use family-specific button icons. The patch forwards the game’s vibration commands to both motors.
 
-1. Close the game. If `d3d9.dll` or `SDL3.dll` is already there, back up those copies outside the game folder.
-2. From the release ZIP, place `d3d9.dll` and `SDL3.dll` beside `AssassinsCreedIIGame.exe`.
-3. Launch from Steam. Choose your resolution and refresh rate in the game.
+| Action prompts and minimap at 1920 × 1200 | Weapon wheel overlay at 1440 × 1080 |
+| --- | --- |
+| ![Climbing HUD with the action prompts and minimap fully visible](docs/screenshots/rooftop-hud-16x10.png) | ![Weapon wheel centered over a translucent overlay that reaches all four edges](docs/screenshots/weapon-wheel-4x3.png) |
 
-To uninstall, close the game, remove the two DLLs from this release, and restore any copies you backed up. Keep existing mods that use `d3d9.dll` in mind when deciding which DLL to load. The patch loads alongside the game and leaves the executable, saves, and settings intact.
+## Installation
 
-## Compatibility and testing
+The patch supports Steam app **33230**, Windows build **1843459**.
 
-Gameplay checks covered **1920×1200** and **1440×1080**. The geometry tests also cover 16:9, 3:2, 5:4, 4:5, 2:1 (18:9), 21:9, 2.375:1, 1.85:1, 2.35:1, 2.39:1, 2.40:1, 2.76:1, 9:16, 19.5:1 and 20:9.
+1. Close the game and download the Windows ZIP from the [latest release](https://github.com/XssentialPilar/assassins-creed-ii-enhanced-patch/releases/latest).
+2. In Steam, open the game’s properties and browse its installed files. If the folder already contains `d3d9.dll` or `SDL3.dll`, please back up those copies before proceeding.
+3. Extract both DLLs beside `AssassinsCreedIIGame.exe`. Launch the game through Steam and choose your resolution and refresh rate.
 
-Virtual-controller tests cover family switching, glyphs, reconnection, and sustained independent vibration. Physical USB and Bluetooth testing remains pending. For family-specific glyphs, Windows needs to expose the controller's hardware identity. Controller translation software can expose a different device.
+To uninstall, close the game, remove the DLLs you installed from the ZIP, and restore any copies you backed up. The patch leaves the game executable, saves, and settings intact.
 
-The patch records local diagnostics in `%TEMP%\ac2-display-trace-*.csv`. See [build instructions](BUILD.md) for the compiler and test steps, and [third-party notices](THIRD_PARTY.md) for dependencies.
+## Compatibility
 
-The patch source is under [MIT](LICENSE). Assassin’s Creed II is a Ubisoft game. This project is independent.
+Gameplay was checked at **1920 × 1200 (16:10)** and **1440 × 1080 (4:3)**. Automated geometry tests also cover **16:9**, **3:2**, **5:4**, **4:5**, **2:1 (18:9)**, **21:9**, **2.375:1**, **1.85:1**, **2.35:1**, **2.39:1**, **2.40:1**, **2.76:1**, **9:16**, **19.5:1**, and **20:9**.
+
+Virtual-controller tests cover family switching, distinct button icons, reconnection, and sustained vibration. Physical USB and Bluetooth validation is pending. Family-specific icons depend on the hardware identity exposed to Windows. Controller translation software may present the pad as a different device.
+
+If you encounter a problem, please include the game build, resolution, and refresh rate when opening an issue. For controller reports, please also include the model and connection type. Local diagnostics are available in `%TEMP%\ac2-display-trace-*.csv`. [Report an issue](https://github.com/XssentialPilar/assassins-creed-ii-enhanced-patch/issues)
+
+[Build and test](BUILD.md) · [MIT license](LICENSE) · [Third-party notices](THIRD_PARTY.md)
+
+Assassin’s Creed II is a Ubisoft game. This community project is independent.

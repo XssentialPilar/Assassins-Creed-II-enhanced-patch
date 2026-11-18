@@ -16,7 +16,7 @@ LICENSES = (
     "licenses/winpthreads.txt",
 )
 DOCUMENTATION = (
-    "LICENSE", "README.md", "README.es.md", "BUILD.md", "THIRD_PARTY.md", *LICENSES,
+    "LICENSE", "README.md", "BUILD.md", "THIRD_PARTY.md", *LICENSES,
 )
 
 
