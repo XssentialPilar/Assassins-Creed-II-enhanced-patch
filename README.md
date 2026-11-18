@@ -18,7 +18,7 @@ The Windows installer and the new input features described below are available i
 
 Editable artwork is included for each input family. [Keyboard and mouse](assets/prompts/keyboard-mouse.svg) · [DualShock 3](assets/prompts/dualshock-3.svg) · [DualShock 4](assets/prompts/dualshock-4.svg) · [Xbox](assets/prompts/xbox.svg) · [DualSense](assets/prompts/dualsense.svg)
 
-![Released and pressed prompts for keyboard and mouse, DualShock 3, DualShock 4, Xbox, and DualSense](https://raw.githubusercontent.com/XssentialPilar/Assassins-Creed-II-enhanced-patch/v1.1.0-preview.7/docs/screenshots/input-prompts-v1.1.0-preview.7.png)
+
 
 *The patch’s rendered prompts with default PC bindings. Remapping a key updates its prompt after the game saves the binding.*
 
