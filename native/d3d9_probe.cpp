@@ -2,6 +2,7 @@
 #include <d3d9.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <bit>
 #include <cmath>
@@ -11,6 +12,20 @@
 #include <cwchar>
 #include <iterator>
 #include <new>
+
+#ifdef AC2_EXPERIMENTAL_AUDIO
+#include <audioclient.h>
+#include <initguid.h>
+#include <dsound.h>
+#include <ksmedia.h>
+#include <mmdeviceapi.h>
+#include <xaudio2.h>
+#include <memory>
+#include <mutex>
+#include <stdexcept>
+#include <thread>
+#include "audio_channel_map.h"
+#endif
 
 #ifdef AC2_VIDEO_FIT
 #include "d3d9_video_fit.h"
@@ -144,6 +159,10 @@ void trace(const char* event, UINT device, UINT frame, long x = 0, long y = 0,
         }
     }
 }
+
+#ifdef AC2_EXPERIMENTAL_AUDIO
+#include "wwise_audio_output.inc"
+#endif
 
 void trace_rect(const char* event, UINT device, UINT frame, const RECT& rect,
                 double arg0 = 0, double arg1 = 0) {
@@ -1646,7 +1665,8 @@ public:
     HRESULT STDMETHODCALLTYPE Present(const RECT* source, const RECT* destination,
         HWND window, const RGNDATA* dirty) noexcept override {
 #ifdef AC2_CONTROLLER_PROMPTS
-        keyboard_prompts_.update();
+        const auto image = game_image();
+        keyboard_prompts_.update(image.image_size == 35192832 && image.code_size == 25837568 ? image.base : 0);
         controller_feedback_focus(keyboard_prompts_.focused());
         show_prompt_notice();
 #endif
@@ -1849,12 +1869,17 @@ public:
         const auto kind = stage == 0 && code_rva(__builtin_return_address(0)) == 0x011dfa59
             ? identify_fire_texture(texture) : FireTexture{};
 #ifdef AC2_CONTROLLER_PROMPTS
+        unsigned keycap_sampling = 0;
         if (kind.prompt) {
             if (auto* replacement = replacement_prompt(static_cast<PromptButton>(kind.prompt),
-                                                       active_controller_prompt())) texture = replacement;
+                                                       active_controller_prompt())) {
+                texture = replacement;
+                if (keyboard_prompts_.keyboard_selected()) keycap_sampling = 2;
+            }
         } else if (kind.action_atlas) {
             if (auto* replacement = replacement_action_atlas(static_cast<IDirect3DTexture9*>(texture))) {
                 texture = replacement;
+                if (keyboard_prompts_.keyboard_selected()) keycap_sampling = 1;
             }
         }
 #endif
@@ -1863,6 +1888,9 @@ public:
 #ifdef AC2_NATIVE_VIEW
         if (SUCCEEDED(result) && stage == 0) {
             popup_texture_ = kind.popup;
+#ifdef AC2_CONTROLLER_PROMPTS
+            keycap_sampling_.store(keycap_sampling, std::memory_order_relaxed);
+#endif
         }
 #endif
         const UINT frame = frame_;
@@ -1986,6 +2014,10 @@ private:
             action_skin_ = skin;
             trace("action_prompt_atlas", id_, frame_, static_cast<long>(skin));
         }
+        if (keyboard && action_keyboard_layout_ != keyboard_prompts_.layout()) {
+            action_revisions_.fill(0);
+            action_keyboard_layout_ = keyboard_prompts_.layout();
+        }
         constexpr PromptButton roles[] = {PromptButton::South, PromptButton::East, PromptButton::West,
                                           PromptButton::North, PromptButton::LeftShoulder};
         for (size_t index = 0; index < std::size(roles); ++index) {
@@ -2012,23 +2044,26 @@ private:
             const auto role = static_cast<unsigned>(button);
             const int binding = keyboard_prompts_.binding(button);
             if (binding < 0) return nullptr;
-            if (key_codes_[role] != binding) {
+            const auto layout = keyboard_prompts_.layout();
+            if (key_codes_[role] != binding || key_layouts_[role] != layout) {
                 for (auto*& texture : key_textures_[role]) {
                     if (texture) texture->Release();
                     texture = nullptr;
                 }
                 key_codes_[role] = binding;
+                key_layouts_[role] = layout;
             }
             const bool pressed = keyboard_prompts_.pressed(button);
             auto*& replacement = key_textures_[role][pressed];
             if (!replacement) {
-                replacement = create_key_prompt_texture(real_, binding, pressed);
-                if (replacement) trace("key_prompt", id_, frame_, role, pressed);
+                replacement = create_key_prompt_texture(real_, binding, pressed, layout);
+                if (replacement) trace("key_prompt", id_, frame_, role, pressed, binding);
             }
             return replacement;
         }
         if (button == PromptButton::Apply) button = PromptButton::South;
         if (button == PromptButton::Cancel) button = PromptButton::East;
+        if (button >= PromptButton::MoveForward) return nullptr;
         const auto role = static_cast<unsigned>(button);
         const bool pressed = controller_prompt_pressed(button, controller.pressed);
         auto*& replacement = prompt_textures_[static_cast<unsigned>(family) - 1][role][pressed];
@@ -2184,6 +2219,24 @@ private:
 
     template<class Draw>
     HRESULT draw_with_veil_projection(Draw draw, bool weapon_veil = false, bool shop_veil = false) {
+#ifdef AC2_CONTROLLER_PROMPTS
+        const unsigned sampling = keycap_sampling_.load(std::memory_order_relaxed);
+        if (sampling) {
+            constexpr D3DSAMPLERSTATETYPE filters[] = {D3DSAMP_MINFILTER, D3DSAMP_MAGFILTER, D3DSAMP_MIPFILTER};
+            DWORD original[std::size(filters)]{};
+            bool restore[std::size(filters)]{};
+            for (unsigned layer = 0; layer < sampling + 1; ++layer) {
+                if (SUCCEEDED(real_->GetSamplerState(0, filters[layer], &original[layer])) &&
+                    original[layer] != D3DTEXF_LINEAR) {
+                    restore[layer] = SUCCEEDED(real_->SetSamplerState(0, filters[layer], D3DTEXF_LINEAR));
+                }
+            }
+            const HRESULT result = draw();
+            for (unsigned layer = 0; layer < sampling + 1; ++layer)
+                if (restore[layer]) real_->SetSamplerState(0, filters[layer], original[layer]);
+            return result;
+        }
+#endif
 #ifdef AC2_NATIVE_VIEW
         if (weapon_veil || shop_veil || (popup_texture_ && rendering_output())) {
             const float width = std::bit_cast<float>(ac2_output_width_bits.load());
@@ -2307,7 +2360,10 @@ private:
 #endif
 #ifdef AC2_CONTROLLER_PROMPTS
     KeyboardPrompts keyboard_prompts_;
+    std::atomic<unsigned> keycap_sampling_{};
     int key_codes_[static_cast<unsigned>(PromptButton::Count)]{};
+    HKL key_layouts_[static_cast<unsigned>(PromptButton::Count)]{};
+    HKL action_keyboard_layout_{};
     IDirect3DTexture9* key_textures_[static_cast<unsigned>(PromptButton::Count)][2]{};
     IDirect3DTexture9* notice_textures_[2]{};
     IDirect3DTexture9* action_atlas_{};
@@ -2383,3 +2439,10 @@ FORWARD_PERF(void, D3DPERF_SetOptions, (DWORD options), (options), void())
 FORWARD_PERF(void, D3DPERF_SetRegion, (D3DCOLOR color, LPCWSTR label), (color, label), void())
 
 #undef FORWARD_PERF
+
+#ifdef AC2_EXPERIMENTAL_AUDIO
+extern "C" BOOL WINAPI DllMain(HINSTANCE, DWORD reason, LPVOID) {
+    if (reason == DLL_PROCESS_ATTACH && trace_host()) install_wwise_audio_bridge();
+    return TRUE;
+}
+#endif

@@ -18,7 +18,8 @@ LICENSES = (
 )
 PROMPT_ART = tuple(f"assets/prompts/{name}.svg" for name in
                    ("keyboard-mouse", "dualshock-3", "dualshock-4", "xbox", "dualsense"))
-DOCUMENTATION = ("LICENSE", "README.md", "BUILD.md", "THIRD_PARTY.md", *PROMPT_ART, *LICENSES)
+DOCUMENTATION = ("LICENSE", "README.md", "BUILD.md", "THIRD_PARTY.md", "docs/audio-outputs.md", *PROMPT_ART,
+                 "assets/prompts/keyboard-mouse.png", *LICENSES)
 
 
 def checked_dll(path):

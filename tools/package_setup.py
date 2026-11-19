@@ -34,7 +34,7 @@ def package(version: str, executable: Path, patch: Path) -> None:
     with ZipFile(archive, "w", compression=ZIP_DEFLATED) as release:
         for name, path in binaries.items():
             release.write(path, name)
-        for name in ("README.md", "THIRD_PARTY.md", *LICENSES):
+        for name in ("README.md", "THIRD_PARTY.md", "docs/audio-outputs.md", *LICENSES):
             release.write(ROOT / name, name)
         release.write(ROOT / "LICENSE", "licenses/Enhanced-Patch-MIT.txt")
     with ZipFile(archive) as release:

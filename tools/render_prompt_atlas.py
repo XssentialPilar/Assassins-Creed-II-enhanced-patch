@@ -38,7 +38,7 @@ def render(tiles: Path, output: Path, version: str) -> None:
             canvas.alpha_composite(enlarged, (221 + index * 113, y + 9))
     draw.text((44, 1179), "Sprites rendered by the patch. The PC rows use the default keyboard and mouse bindings.",
               font=font("segoeui.ttf", 16), fill="#544f58")
-    draw.text((44, 1202), "Empty-hand and feet prompts vary when you remap left Shift or Space.",
+    draw.text((44, 1202), "In-game prompts update as you change your bindings in Controls.",
               font=font("segoeui.ttf", 15), fill="#544f58")
     output.parent.mkdir(parents=True, exist_ok=True)
     canvas.convert("RGB").save(output, optimize=True)

@@ -174,10 +174,16 @@ bool test_keyboard_profile() {
     const bool passed = write(L"Input", L"SelectedInput", L"KeyboardMouse2") &&
         write(L"KeyboardMouse2", L"Button1", L"57") && write(L"KeyboardMouse2", L"Button2", L"256") &&
         write(L"KeyboardMouse2", L"Button4", L"42") && write(L"KeyboardMouse2", L"Start", L"512") &&
+        write(L"KeyboardMouse2", L"LeftStickUp", L"17") && write(L"KeyboardMouse2", L"LeftStickDown", L"31") &&
+        write(L"KeyboardMouse2", L"RightStickUp", L"200") && write(L"KeyboardMouse2", L"PadLeft", L"2") &&
+        write(L"KeyboardMouse2", L"StickRight", L"46") && write(L"KeyboardMouse2", L"StickLeft", L"10") &&
         write(L"KeyboardMouse5", L"Button1", L"259") && read_keyboard_profile(file, bindings) &&
         input_label(get(PromptButton::South)) == L"Space" && input_label(get(PromptButton::West)) == L"LMB" &&
         input_label(get(PromptButton::East)) == L"LShift" && get(PromptButton::Start) == -1 &&
-        get(PromptButton::Apply) == -1 &&
+        get(PromptButton::Apply) == 57 && get(PromptButton::Cancel) == 42 &&
+        get(PromptButton::MoveForward) == 17 && get(PromptButton::MoveBack) == 31 &&
+        get(PromptButton::LookUp) == 200 && get(PromptButton::Medicine) == 2 &&
+        get(PromptButton::CenterCamera) == 46 && get(PromptButton::FirstPerson) == 10 &&
         write(L"KeyboardMouse2", L"Button1", L"28") && read_keyboard_profile(file, bindings) &&
         input_label(get(PromptButton::South)) == L"Enter" &&
         write(L"Input", L"SelectedInput", L"KeyboardMouse5") && read_keyboard_profile(file, bindings) &&
@@ -187,6 +193,54 @@ bool test_keyboard_profile() {
     DeleteFileW(file);
     return passed && keyboard_virtual_key(0x2a) == VK_LSHIFT && keyboard_virtual_key(0x36) == VK_RSHIFT &&
         keyboard_virtual_key(0x9d) == VK_RCONTROL && keyboard_virtual_key(257) == VK_RBUTTON;
+}
+
+bool test_live_keyboard_profile() {
+    constexpr unsigned ManagerSlot = 0x01e3dbc0;
+    auto* image = static_cast<BYTE*>(VirtualAlloc(nullptr, ManagerSlot + sizeof(DWORD),
+        MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+    if (!image) return false;
+    DWORD manager[2]{}, provider[2]{};
+    std::array<BYTE, 0x59c + 2 * 0x218> profiles{};
+    std::array<BYTE, 24 * 0x214> mappings{};
+    const auto write = [](BYTE* location, DWORD value) { std::memcpy(location, &value, sizeof(value)); };
+    const auto map = [&](unsigned index, DWORD kind, DWORD code) {
+        auto* row = mappings.data() + index * 0x214;
+        write(row, kind);
+        write(row + 8, code);
+    };
+    auto* first = profiles.data() + 0x59c;
+    auto* second = first + 0x218;
+    provider[1] = reinterpret_cast<DWORD>(profiles.data());
+    manager[1] = reinterpret_cast<DWORD>(provider);
+    write(image + ManagerSlot, reinterpret_cast<DWORD>(manager));
+    write(first, 1);
+    write(second, 1);
+    std::memcpy(first + 8, L"KeyboardMouse2", sizeof(L"KeyboardMouse2"));
+    std::memcpy(second + 8, L"Controller", sizeof(L"Controller"));
+    write(first + 0x214, reinterpret_cast<DWORD>(mappings.data()));
+    for (unsigned index = 0; index < 24; ++index) map(index, 1, index + 1);
+    map(7, 1, 0x04);
+    KeyBindings bindings;
+    const auto base = reinterpret_cast<std::uintptr_t>(image);
+    const auto get = [&](PromptButton role) { return bindings[static_cast<unsigned>(role)]; };
+    bool passed = !supports_live_keyboard_profiles(base) &&
+        read_live_keyboard_profile(base, bindings) == LiveKeyboardProfile::Keyboard &&
+        get(PromptButton::Sword) == 0x04 && get(PromptButton::Start) == 10 &&
+        get(PromptButton::MoveForward) == 17 && get(PromptButton::Apply) == 1;
+    map(7, 1, 0x08);
+    map(0, 2, 7);
+    map(8, 0, 0);
+    passed = passed && read_live_keyboard_profile(base, bindings) == LiveKeyboardProfile::Keyboard &&
+        get(PromptButton::Sword) == 0x08 && get(PromptButton::South) == 263 &&
+        get(PromptButton::Apply) == 263 && get(PromptButton::Back) == -1;
+    write(profiles.data() + 0x594, 1);
+    passed = passed && read_live_keyboard_profile(base, bindings) == LiveKeyboardProfile::Other;
+    write(profiles.data() + 0x594, 0);
+    passed = passed && read_live_keyboard_profile(base, bindings) == LiveKeyboardProfile::Keyboard &&
+        get(PromptButton::Sword) == 0x08;
+    VirtualFree(image, 0, MEM_RELEASE);
+    return passed;
 }
 
 bool texture_digest(IDirect3DTexture9* texture, DWORD& digest) {
@@ -268,9 +322,10 @@ bool test_action_atlas(IDirect3DDevice9* device) {
     };
     const bool passed = atlas && released && pressed && read(16, 148) == Stock &&
         update_action_prompt_atlas(atlas, original, PromptButton::South, released) &&
-        read(16, 148) == 0x94141312 && read(6, 148) == 0 && read(8, 16) == Stock &&
+        (read(16, 148) >> 24) == 209 && read(6, 148) == 0 && read(32, 140) == 0 &&
+        read(8, 16) == Stock &&
         update_action_prompt_atlas(atlas, original, PromptButton::South, pressed) &&
-        read(16, 148) == 0xfffaf9f6 && read(6, 148) == 0 && read(8, 16) == Stock &&
+        read(16, 148) == 0xfff8f5ed && read(6, 148) == 0 && read(8, 16) == Stock &&
         update_action_prompt_atlas(atlas, original, PromptButton::South, nullptr) &&
         read(16, 148) == Stock && read(8, 16) == Stock;
     if (pressed) pressed->Release();
@@ -280,7 +335,7 @@ bool test_action_atlas(IDirect3DDevice9* device) {
     return passed;
 }
 
-bool different_glyphs(const char* preview_directory = nullptr) {
+bool different_glyphs(const char* preview_directory = nullptr, bool complete_keyboard = false) {
     HWND window = CreateWindowExW(0, L"STATIC", L"Controller glyph smoke test", WS_POPUP,
                                   0, 0, 64, 64, nullptr, nullptr, nullptr, nullptr);
     if (!window) {
@@ -301,7 +356,7 @@ bool different_glyphs(const char* preview_directory = nullptr) {
     // Texture checks can run on the null device while another program owns full-screen Direct3D.
     bool passed = factory && (create_device(D3DDEVTYPE_HAL) || create_device(D3DDEVTYPE_NULLREF));
     if (passed) {
-        for (unsigned i = 1; passed && i < static_cast<unsigned>(PromptButton::Count); ++i) {
+        for (unsigned i = 1; passed && i <= static_cast<unsigned>(PromptButton::Cancel); ++i) {
             const auto button = static_cast<PromptButton>(i);
             const auto digest = [device, button, &passed, preview_directory](ControllerFamily family) {
                 DWORD signature[2]{};
@@ -332,7 +387,9 @@ bool different_glyphs(const char* preview_directory = nullptr) {
         if (key) key->Release();
         if (held_key) held_key->Release();
         if (preview_directory) {
-            const int bindings[] = {0x39, 0x2a, 256, 0x12, 0x21, 257, 0x14, 0x10, 1, 15};
+            const int bindings[] = {0x39, 0x2a, 256, 0x12, 0x21, 257, 0x14, 0x10, 1, 15,
+                                    0x11, 0x1f, 0x1e, 0x20, 0xc8, 0xd0, 0xcb, 0xcd,
+                                    0x02, 0x03, 0x04, 0x05, 0x2e, 0x0a};
             for (unsigned index = 0; index < std::size(bindings); ++index) {
                 auto* texture = create_key_prompt_texture(device, bindings[index]);
                 auto* pressed = create_key_prompt_texture(device, bindings[index], true);
@@ -340,6 +397,15 @@ bool different_glyphs(const char* preview_directory = nullptr) {
                 passed &= save_glyph(pressed, preview_directory, 5, index + 1);
                 if (texture) texture->Release();
                 if (pressed) pressed->Release();
+            }
+            if (complete_keyboard) {
+                for (unsigned code = 1; code <= 263; ++code) {
+                    for (unsigned pressed = 0; pressed <= 1; ++pressed) {
+                        auto* texture = create_key_prompt_texture(device, static_cast<int>(code), pressed != 0);
+                        passed &= save_glyph(texture, preview_directory, 20 + pressed, code);
+                        if (texture) texture->Release();
+                    }
+                }
             }
         }
         passed &= test_action_atlas(device);
@@ -353,6 +419,10 @@ bool different_glyphs(const char* preview_directory = nullptr) {
 }  // namespace
 
 int main(int argc, char** argv) {
+    if (argc == 2 && std::strcmp(argv[1], "--check-live-bindings") == 0)
+        return test_live_keyboard_profile() && test_keyboard_profile() ? 0 : 5;
+    if (argc == 3 && std::strcmp(argv[1], "--render-keyboard") == 0)
+        return different_glyphs(argv[2], true) ? 0 : 4;
     if (argc == 3 && std::strcmp(argv[1], "--render-atlas") == 0) {
         return different_glyphs(argv[2]) ? 0 : 4;
     }
@@ -409,7 +479,7 @@ int main(int argc, char** argv) {
         return 5;
     }
     std::puts("Four controller families, sustained rumble, PlayStation light changes, and DualSense trigger reports passed.");
-    if (!test_haptic_samples() || !test_keyboard_profile()) {
+    if (!test_haptic_samples() || !test_keyboard_profile() || !test_live_keyboard_profile()) {
         std::puts("Haptic channel or keyboard profile check failed.");
         return 6;
     }

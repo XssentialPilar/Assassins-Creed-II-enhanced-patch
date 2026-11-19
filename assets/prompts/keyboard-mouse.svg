@@ -1,101 +1,60 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="864" height="510" viewBox="0 0 864 510" role="img" aria-labelledby="title description">
-  <title id="title">Assassin’s Creed II Enhanced Patch keyboard and mouse prompts</title>
-  <desc id="description">Uniform keyboard and mouse caps with centered legends and highlighted mouse buttons.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Tecla tallada keyboard and mouse keycaps</title>
+  <desc id="desc">Four centered widths with translucent graphite and opaque ivory faces. Mouse buttons, Shift and Space use alpha masks.</desc>
   <defs>
-    <symbol id="cap" viewBox="0 0 32 32">
-      <circle id="key-face" cx="16" cy="16" r="14" fill="#141312" fill-opacity=".58" stroke="#f5f3ef" stroke-opacity="1" stroke-width="1.15"/>
-    </symbol>
-    <symbol id="cap-pressed" viewBox="0 0 32 32">
-      <circle id="pressed-face" cx="16" cy="16" r="14" fill="#faf9f6" fill-opacity="1" stroke="#141312" stroke-opacity="1" stroke-width="1.15"/>
-    </symbol>
-    <symbol id="mouse" viewBox="0 0 32 32">
-      <use href="#cap" width="32" height="32"/>
-      <rect id="mouse-outline" x="9" y="7" width="14" height="18" rx="5.5" fill="none" stroke="#f6f6f6" stroke-width="1.35"/>
-      <path d="M9.7 15.5h12.6M16 7.8v7.7" fill="none" stroke="#f6f6f6" stroke-width="1.1"/>
-    </symbol>
-    <style>
-      .title { font: 300 34px "Segoe UI", sans-serif; fill: #262229 }
-      .subtitle { font: 600 16px "Segoe UI", sans-serif; fill: #8d263c }
-      .key { font: 600 17px "Segoe UI", sans-serif; fill: #fafafa; text-anchor: middle; dominant-baseline: central }
-      .key.pressed { fill: #151515 }
-      .space { fill:none; stroke:#fafafa; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round }
-      .space.pressed { stroke:#151515 }
-      .compact { font-size: 10px; letter-spacing: .05px }
-      .caption { font: 600 12px "Segoe UI", sans-serif; fill: #4d4751; text-anchor: middle }
-    </style>
-  </defs>
-  <rect width="864" height="510" fill="#f2efeb"/>
-  <rect width="864" height="6" fill="#95273a"/>
-  <text class="title" x="30" y="54">Keyboard &amp; mouse prompts</text>
-  <text class="subtitle" x="32" y="82">ASSASSIN’S CREED II ENHANCED PATCH</text>
-  <path d="M32 105h800M32 226h800" stroke="#d1c7c1"/>
-  <g transform="translate(64 122)">
-    <g transform="scale(2)"><use href="#cap" width="32" height="32"/><text class="key" x="16" y="15.5">E</text></g>
-    <text class="caption" x="32" y="84">Head</text>
-  </g>
-  <g transform="translate(198 122)">
-    <g transform="scale(2)"><use href="#cap" width="32" height="32"/><text class="key" x="16" y="15.5">F</text></g>
-    <text class="caption" x="32" y="84">Lock on</text>
-  </g>
-  <g transform="translate(332 122)">
-    <g transform="scale(2)"><use href="#cap" width="32" height="32"/><text class="key" x="16" y="15.5">T</text></g>
-    <text class="caption" x="32" y="84">Contextual camera</text>
-  </g>
-  <g transform="translate(466 122)">
-    <g transform="scale(2)"><use href="#cap" width="32" height="32"/><text class="key" x="16" y="15.5">Q</text></g>
-    <text class="caption" x="32" y="84">Weapon wheel</text>
-  </g>
-  <g transform="translate(600 122)">
-    <g transform="scale(2)"><use href="#cap" width="32" height="32"/><path class="space" d="M8 13.6v4.8h16v-4.8"/></g>
-    <text class="caption" x="32" y="84">Feet</text>
-  </g>
-  <g transform="translate(734 122)">
-    <g transform="scale(2)">
-      <use href="#cap" width="32" height="32"/>
-      <path class="space" d="M6.5 10.3v11.4h6M20 9.3l6.1 6h-3.7v7.4h-4.8v-7.4H14Z"/>
+    <linearGradient id="graphite" x2="0" y2="1">
+      <stop stop-color="#444341"/>
+      <stop offset="1" stop-color="#111110"/>
+    </linearGradient>
+    <g id="released" fill="url(#graphite)" fill-opacity=".82" stroke="#f6eee0" stroke-width="4">
+      <rect x="22" y="21" width="84" height="86" rx="15"/>
+      <rect x="143" y="21" width="98" height="86" rx="15"/>
+      <rect x="264" y="21" width="112" height="86" rx="15"/>
+      <rect x="388" y="21" width="120" height="86" rx="15"/>
     </g>
-    <text class="caption" x="32" y="84">Empty hand</text>
+    <g id="bevel" fill="none" stroke-width="2">
+      <rect x="27" y="26" width="74" height="76" rx="11"/>
+      <rect x="148" y="26" width="88" height="76" rx="11"/>
+      <rect x="269" y="26" width="102" height="76" rx="11"/>
+      <rect x="393" y="26" width="110" height="76" rx="11"/>
+    </g>
+    <path id="mouse" d="M-2.8,-9 H2.8 A5,5 0 0 1 7.8,-4 V3.8 A5.2,5.2 0 0 1 2.6,9 H-2.6 A5.2,5.2 0 0 1 -7.8,3.8 V-4 A5,5 0 0 1 -2.8,-9 Z M-7.4,-.7 H7.4 M0,-8.5 V-.7"
+          fill="none" stroke="#fff" stroke-width="1.27" stroke-linejoin="round"/>
+    <path id="mouse-left" d="M-.9,-7.65 H-2.8 A3.6,3.6 0 0 0 -6.45,-4 V-1.65 H-.9 Z" fill="#fff"/>
+    <path id="shift" d="M0,-8 7,-1 H3.2 V7 H-3.2 V-1 H-7 Z"
+          fill="none" stroke="#fff" stroke-width="1.45" stroke-linejoin="round"/>
+  </defs>
+  <use href="#released"/>
+  <use href="#bevel" stroke="#a09689"/>
+  <g transform="translate(0 128)">
+    <g fill="#f8f5ed" stroke="#282521" stroke-width="4">
+      <rect x="22" y="21" width="84" height="86" rx="15"/>
+      <rect x="143" y="21" width="98" height="86" rx="15"/>
+      <rect x="264" y="21" width="112" height="86" rx="15"/>
+      <rect x="388" y="21" width="120" height="86" rx="15"/>
+    </g>
+    <use href="#bevel" stroke="#a69d8f"/>
   </g>
-  <g transform="translate(64 251)">
-    <g transform="scale(2)"><use href="#cap" width="32" height="32"/><text class="key compact" x="16" y="15.5">ESC</text></g>
-    <text class="caption" x="32" y="84">Pause</text>
+  <g transform="translate(64 320) scale(2.65)">
+    <use href="#mouse"/>
+    <use href="#mouse-left"/>
   </g>
-  <g transform="translate(198 251)">
-    <g transform="scale(2)"><use href="#cap" width="32" height="32"/><text class="key compact" x="16" y="15.5">TAB</text></g>
-    <text class="caption" x="32" y="84">Map</text>
+  <g transform="translate(192 320) scale(2.65)">
+    <use href="#mouse"/>
+    <use href="#mouse-left" transform="scale(-1 1)"/>
   </g>
-  <g transform="translate(332 251)">
-    <g transform="scale(2)"><use href="#mouse" width="32" height="32"/><path d="M10.3 14.3v-2a4.4 4.4 0 0 1 4.6-4.9v6.9Z" fill="#fff"/></g>
-    <text class="caption" x="32" y="84">Left button</text>
+  <g transform="translate(320 320) scale(2.65)">
+    <use href="#mouse"/>
+    <rect x="-1.5" y="-6.8" width="3" height="4.7" rx="1.2" fill="#fff"/>
   </g>
-  <g transform="translate(466 251)">
-    <g transform="scale(2)"><use href="#mouse" width="32" height="32"/><path d="M21.7 14.3v-2a4.4 4.4 0 0 0-4.6-4.9v6.9Z" fill="#fff"/></g>
-    <text class="caption" x="32" y="84">Right button</text>
+  <g transform="translate(448 320) scale(3)">
+    <use href="#shift"/>
+    <path d="M-10.7,2.5 -14.2,4.7 -10.7,6.9Z" fill="#fff"/>
   </g>
-  <g transform="translate(600 251)">
-    <g transform="scale(2)"><use href="#mouse" width="32" height="32"/><rect x="14.5" y="7.5" width="3" height="7" rx="1.2" fill="#fff"/></g>
-    <text class="caption" x="32" y="84">Middle button</text>
+  <g transform="translate(64 448) scale(3)">
+    <use href="#shift"/>
+    <path d="M10.7,2.5 14.2,4.7 10.7,6.9Z" fill="#fff"/>
   </g>
-  <g transform="translate(734 251)">
-    <g transform="scale(2)"><use href="#cap" width="32" height="32"/><text class="key" x="16" y="15.5">M4</text></g>
-    <text class="caption" x="32" y="84">Side button</text>
-  </g>
-  <path d="M32 365h800" stroke="#d1c7c1"/>
-  <text class="subtitle" x="32" y="405">PRESSED</text>
-  <g transform="translate(198 410) scale(2)">
-    <use href="#cap-pressed" width="32" height="32"/><text class="key pressed" x="16" y="15.5">E</text>
-  </g>
-  <g transform="translate(332 410) scale(2)">
-    <use href="#cap-pressed" width="32" height="32"/><text class="key pressed" x="16" y="15.5">Q</text>
-  </g>
-  <g transform="translate(466 410) scale(2)">
-    <use href="#cap-pressed" width="32" height="32"/>
-    <path class="space pressed" d="M8 13.6v4.8h16v-4.8"/>
-  </g>
-  <g transform="translate(600 410) scale(2)">
-    <use href="#cap-pressed" width="32" height="32"/>
-    <rect x="9" y="7" width="14" height="18" rx="5.5" fill="none" stroke="#151515" stroke-width="1.35"/>
-    <path d="M9.7 15.5h12.6M16 7.8v7.7" fill="none" stroke="#151515" stroke-width="1.1"/>
-    <path d="M10.3 14.3v-2a4.4 4.4 0 0 1 4.6-4.9v6.9Z" fill="#151515"/>
-  </g>
+  <path d="M163 438 V455 H221 V438" fill="none" stroke="#fff" stroke-width="5"
+        stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

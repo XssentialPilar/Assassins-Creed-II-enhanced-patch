@@ -8,7 +8,6 @@ import re
 import shutil
 import struct
 import subprocess
-import xml.etree.ElementTree as ET
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,18 +18,15 @@ METHOD = re.compile(
 )
 
 
-def generate_prompt_geometry(out):
-    """Use the same cap proportions and colors as the editable SVG."""
-    drawing = ET.parse(ROOT / 'assets/prompts/keyboard-mouse.svg')
-    geometry = ('cx', 'cy', 'r', 'stroke-width', 'fill-opacity', 'stroke-opacity')
-    source = '// Generated from assets/prompts/keyboard-mouse.svg\n'
-    for element_id, variable in (('key-face', 'Keycap'), ('pressed-face', 'KeycapPressed')):
-        key = next(element.attrib for element in drawing.iter() if element.get('id') == element_id)
-        values = [float(key[name]) for name in geometry]
-        colors = [int(key[name][1:], 16) for name in ('fill', 'stroke')]
-        source += f'constexpr KeycapGeometry {variable} = {{' + ', '.join(f'{n:.6f}f' for n in values)
-        source += ', ' + ', '.join(f'0x{color:06x}u' for color in colors) + '};\n'
-    (out / 'keyboard_keycap.inc').write_text(source, encoding='utf-8')
+def embed_keyboard_png(out):
+    """Keep the original RGBA PNG in the DLL. SDL decodes it on first use."""
+    data = (ROOT / 'assets/prompts/keyboard-mouse.png').read_bytes()
+    if data[:8] != b'\x89PNG\r\n\x1a\n' or struct.unpack('>II', data[16:24]) != (512, 512):
+        raise ValueError('The keyboard keycap sheet must be a 512 × 512 PNG.')
+    lines = [', '.join(f'0x{byte:02x}' for byte in data[i:i + 16]) for i in range(0, len(data), 16)]
+    (out / 'keyboard_keycap.inc').write_text(
+        'constexpr unsigned char KeyboardKeycapPng[] = {\n    ' + ',\n    '.join(lines) + '\n};\n',
+        encoding='utf-8')
 
 
 def generate_controller_sprites(out, executable):
@@ -135,7 +131,8 @@ def compile_movie_shader(out):
         (out / f'movie_surround_{name}.inc').write_text('\n'.join(lines) + '\n', encoding='ascii')
 
 
-def build(native_view, fit_video, high_refresh, lean_trace, controller_sdk, resvg=None):
+def build(native_view, fit_video, high_refresh, lean_trace, controller_sdk, resvg=None,
+          experimental_audio=False):
     compiler = shutil.which('i686-w64-mingw32-clang++')
     if not compiler:
         raise SystemExit('Install or add the Win32 LLVM-MinGW compiler to PATH.')
@@ -143,7 +140,8 @@ def build(native_view, fit_video, high_refresh, lean_trace, controller_sdk, resv
     header = (toolchain/'include/d3d9.h').read_text(encoding='utf8')
     variant = '-'.join(name for enabled, name in (
         (native_view, 'native-view'), (fit_video, 'video-fit'), (high_refresh, 'high-refresh'),
-        (lean_trace, 'lean-trace'), (controller_sdk, 'controllers')) if enabled)
+        (lean_trace, 'lean-trace'), (controller_sdk, 'controllers'),
+        (experimental_audio, 'experimental-audio')) if enabled)
     out = ROOT/'build'/(variant or 'd3d9-probe')
     out.mkdir(parents=True, exist_ok=True)
     common = {'QueryInterface', 'AddRef', 'Release'}
@@ -163,7 +161,7 @@ def build(native_view, fit_video, high_refresh, lean_trace, controller_sdk, resv
     controller_options = []
     controller_libs = []
     if controller_sdk:
-        generate_prompt_geometry(out)
+        embed_keyboard_png(out)
         generate_controller_sprites(out, resvg)
         runtime = controller_sdk/'bin'/'SDL3.dll'
         license_file = controller_sdk.parent/'LICENSE.txt'
@@ -181,10 +179,14 @@ def build(native_view, fit_video, high_refresh, lean_trace, controller_sdk, resv
     if fit_video:
         compile_movie_shader(out)
         options += ['-DAC2_VIDEO_FIT', str(ROOT/'native/d3d9_video_fit.cpp')]
+    audio_libs = ['-lole32', '-lksguid'] if experimental_audio else []
+    if experimental_audio:
+        options += ['-DAC2_EXPERIMENTAL_AUDIO', str(ROOT/'native/audio_channel_map.cpp')]
     subprocess.run([compiler, '-std=c++20', '-O2', '-fno-omit-frame-pointer', '-Wall', '-Wextra', '-Werror',
                     '-shared', '-static', *options,
                     '-I', str(out), str(ROOT/'native/d3d9_probe.cpp'), str(ROOT/'native/d3d9_probe.def'),
-                    '-ldxguid', '-luuid', *controller_libs, '-o', str(out/'d3d9.dll')], cwd=ROOT, check=True)
+                    '-ldxguid', '-luuid', *controller_libs, *audio_libs, '-o', str(out/'d3d9.dll')],
+                   cwd=ROOT, check=True)
     subprocess.run([compiler, '-std=c++20', '-O2', '-Wall', '-Wextra', '-Werror', '-static',
                     str(ROOT/'native/d3d9_probe_smoke.cpp'), '-ld3d9', '-luser32',
                     '-ldxguid', '-luuid', '-o', str(out/'ac2_display_smoke.exe')], cwd=ROOT, check=True)
@@ -217,6 +219,8 @@ if __name__ == '__main__':
     parser.add_argument('--controller-sdk', type=Path, metavar='SDL3_I686_PATH',
                         help='Build the experimental controller and prompt integration with SDL3 for Win32.')
     parser.add_argument('--resvg', type=Path, help='Path to the resvg CLI for rasterizing controller artwork.')
+    parser.add_argument('--experimental-audio', action='store_true',
+                        help='Include the WASAPI and XAudio2 output bridge for the supported Steam build.')
     args = parser.parse_args()
     build(bool(args.native_view or args.high_refresh or args.controller_sdk), args.fit_video,
-          args.high_refresh, args.lean_trace, args.controller_sdk, args.resvg)
+          args.high_refresh, args.lean_trace, args.controller_sdk, args.resvg, args.experimental_audio)

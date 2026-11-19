@@ -12,9 +12,10 @@ A community patch for the Windows Steam edition of Assassin’s Creed II. It ada
 - **Pre-rendered video.** Videos retain their original proportions. Their surrounding backgrounds extend to fill the display.
 - **High refresh rates.** Selecting a refresh rate above 60 Hz removes the game’s internal 60 FPS wait. Your display settings, VSync, and system performance still affect the frame rate you see.
 - **Controller support.** The patch identifies supported DualShock 3, DualShock 4, DualSense, and Xbox controllers and shows each family's button icons. Each supported button has a pressed state based on the physical input. DualShock 3 uses colored symbols with START and SELECT. DualSense uses monochrome symbols with Create and Options.
-- **Keyboard and mouse prompts.** Supported menus and the gameplay action HUD show the active bindings in round, translucent prompts. A pressed key uses a light background with a dark legend. Press **Ctrl + Alt + F11** while the game is focused to switch between assigned keys and the original icons. The patch displays a confirmation in-game and remembers your choice.
+- **Keyboard and mouse prompts.** The Controls menu and gameplay action HUD follow your active bindings as you change them. Keyboard and mouse prompts use anti-aliased keycaps with a translucent dark background and turn white when pressed. Press **Ctrl + Alt + F11** while the game is focused to switch between assigned keys and the original icons.
+- **Gameplay audio.** WASAPI detects the Windows output format, and XAudio2 plays the existing Wwise mix when the device is supported. Exclusive DirectOut supports a manual map with up to 24 driver channels. [Audio outputs and channel mapping](docs/audio-outputs.md)
 
-Editable SVG artwork is available for all five input families. [Input artwork](https://github.com/XssentialPilar/Assassins-Creed-II-enhanced-patch/tree/v1.1.0/assets/prompts)
+Editable SVG artwork is available for all five input families. [Input artwork](assets/prompts) · [Complete keyboard and mouse layout](https://raw.githubusercontent.com/XssentialPilar/Assassins-Creed-II-enhanced-patch/v1.2.0/docs/screenshots/keyboard-layout-v1.2.0.png)
 
 ## In-game screenshots
 
@@ -59,7 +60,7 @@ Close the game, remove the two DLLs you installed from the ZIP, and restore any 
 | Gameplay | Checked in-game at **1920 × 1200 (16:10)** and **1440 × 1080 (4:3)**. |
 | Aspect ratios | Automated geometry tests also cover **16:9**, **3:2**, **5:4**, **4:5**, **2:1 (18:9)**, **21:9**, **2.375:1**, **1.85:1**, **2.35:1**, **2.39:1**, **2.40:1**, **2.76:1**, **9:16**, **19.5:1**, and **20:9**. |
 | Controllers | Virtual-device tests cover switching between families, reconnection, independent vibration, and DualSense trigger reports. Direct3D tests check distinct glyphs for all four families. Physical USB and Bluetooth validation is pending. |
-| Keyboard and mouse | Automated tests check remaps, mouse buttons, profile switching, and keycap rendering. The patch reads assignments after the game saves them. |
+| Keyboard and mouse | Automated tests cover live remaps, mouse buttons, profile changes, and keycap rendering. The keycap for Sword was verified in the Controls menu during reassignment. |
 
 ### PlayStation controllers
 
